@@ -404,7 +404,6 @@ function doNewEnterJob(fitem, kitem, curBaseJisu, curBaseJisuDir, orderRequestDi
         TotalOrderedCnt += orderCnt;
 
         if (CurEnterCnt == MaxEnterCnt && IsLongPeriod && IsLongPeriodHedge) {
-            IsLongPeriodHedge = false;// 헷지 진입은 한번만 되게 한다. 
             const order_req_dir_inv = orderRequestDir === "U"?"D":"U";
             const order_type_corp_inv = orderTypeCOrP === "C"?"P":"C";
             const items_info_inv = getTargetItemsInfoByDir(fitem, order_req_dir_inv, order_type_corp_inv);
