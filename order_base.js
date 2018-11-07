@@ -59,7 +59,6 @@ var SignInfo = function(stat, signed_price, signed_quantity) {
 };
 
 var OrderComm = function(port, host) {
-    const config = new Config();
     var clientOrderId = 0;
     var orderMap = new Map();
     var infoMap = new Map();
@@ -89,7 +88,7 @@ var OrderComm = function(port, host) {
     if (host) 
         conn = net.createConnection(port, host);
     else 
-        conn = net.createConnection(port, config['comm_host']);
+        conn = net.createConnection(port, Config['comm_host']);
     conn.on('connect', function() {
         console.log("연결됨.");
         var jobj = {"from" : 1, "req_rsp" : 0, "msg_type" : 0};

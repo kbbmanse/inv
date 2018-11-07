@@ -10,7 +10,6 @@ const OrderRequestMgr = require("./order_request_mgr.js").OrderRequestMgr;
 const Config = require("./config.js");
 require("date-utils")
 
-const MyConfig = new Config();
 var DbFilePath = "./history.db";
 var FCode;
 var Board;
@@ -103,9 +102,9 @@ if (process.argv.length >= 15)
 if (process.argv.length >= 16) 
    FutMonIdx = parseInt(process.argv[15]);
 
-const orderComm = new OrderComm(MyConfig["comm_port"]);
+const orderComm = new OrderComm(Config["comm_port"]);
 const orderRequestMgr = new OrderRequestMgr(orderComm);
-const commRedis = new CommRedis(MyConfig["redis_host"], MyConfig["redis_port"], trading, OptMonIdx, FutMonIdx);
+const commRedis = new CommRedis(Config["redis_host"], Config["redis_port"], trading, OptMonIdx, FutMonIdx);
 
 const HistoryDb = new sqlite3.Database(DbFilePath, sqlite3.OPEN_READWRITE, function(error) {
     this.each("select * from p_positions_tbl order by idx;", function(err, row) {
