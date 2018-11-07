@@ -19,7 +19,7 @@ var NewEnterOrderCntMap = new Map();
 var CurNewOrderRequestInfo = null;
 var HedgeNewOrderRequestInfo = null;
 var CurEnterCnt = 0;
-var TotalOrderedCnt = 0;
+var OneWayOrderedCnt = 0;
 var FirstEnterBaseJisu;
 var EnterTargetInfos = {};
 var CurDate;
@@ -401,18 +401,18 @@ function doNewEnterJob(fitem, kitem, curBaseJisu, curBaseJisuDir, orderRequestDi
         processNewOrder(CurNewOrderRequestInfo, curBaseJisuDir);
 
         ++CurEnterCnt;
-        TotalOrderedCnt += orderCnt;
+        OneWayOrderedCnt += orderCnt;
 
         if (CurEnterCnt == MaxEnterCnt && IsLongPeriod && IsLongPeriodHedge) {
             const order_req_dir_inv = orderRequestDir === "U"?"D":"U";
             const order_type_corp_inv = orderTypeCOrP === "C"?"P":"C";
             const items_info_inv = getTargetItemsInfoByDir(fitem, order_req_dir_inv, order_type_corp_inv);
             HedgeNewOrderRequestInfo = new OrderRequestInfoLongShort(order_type_corp_inv, curBaseJisu, 
-                    items_info_inv.item_l_code, items_info_inv.item_l.price, TotalOrderedCnt, items_info_inv.item_s_code, items_info_inv.item_s.price, TotalOrderedCnt, 
+                    items_info_inv.item_l_code, items_info_inv.item_l.price, OneWayOrderedCnt, items_info_inv.item_s_code, items_info_inv.item_s.price, OneWayOrderedCnt, 
                     null, order_req_dir_inv, IsLongPeriod);
             console.log(util.format("doNewEnterJob. 헷지포지션 신규 진입- 진입지수:%s, L:%s, %s, S:%s, %s, 주문수량:%d", 
                         str_base_jisu, items_info_inv.item_l_code, parseFloat(items_info_inv.item_l.price).toFixed(2),
-                        items_info_inv.item_s_code, parseFloat(items_info_inv.item_s.price).toFixed(2), TotalOrderedCnt));
+                        items_info_inv.item_s_code, parseFloat(items_info_inv.item_s.price).toFixed(2), OneWayOrderedCnt));
             // 생성한 주문을 처리한다. 
             processNewOrder(HedgeNewOrderRequestInfo, curBaseJisuDir);
         }
@@ -607,6 +607,9 @@ function doPostPayoff(positionInfo, positionInfoPayoff, goodsCode, lors, payoffL
             let cnt = NewEnterOrderCntMap[orgBaseJisuStr] - orderCnt; 
             NewEnterOrderCntMap[orgBaseJisuStr] = cnt;
             
+            if (lors === 'L')
+                OneWayOrderedCnt -= orderCnt;
+
             if (!cnt) // 해당 진입 지수에 포지션이 0이 됐다면 청산이 완전히 끝난것이고 다시 진입할 기회를 준다. 
                 --CurEnterCnt;
         }
