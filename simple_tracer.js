@@ -377,8 +377,12 @@ function doNewEnterJob(fitem, kitem, curBaseJisu, curBaseJisuDir, orderRequestDi
         return;
     }
     // 신규 진입
-    if (remain == 0.0 && CurEnterCnt < MaxEnterCnt && ((orderRequestDir === 'U' && curBaseJisu <= min_start_price) || (orderRequestDir === 'D' && curBaseJisu >= min_start_price))) {
+    if (!CurNewOrderRequestInfo && remain == 0.0 && CurEnterCnt < MaxEnterCnt && ((orderRequestDir === 'U' && curBaseJisu <= min_start_price) || (orderRequestDir === 'D' && curBaseJisu >= min_start_price))) {
         const str_base_jisu = curBaseJisu.toFixed(2);
+        var order_record = NewEnterOrderCntMap[str_base_jisu];
+        if (order_record)
+            return; // 이미 해당 지수에 신규 포지션이 들어간 상태이므로 리턴
+
         const enter_target_infos = getEnterTargetInfos(curBaseJisu, orderRequestDir);
         var orderCnt = enter_target_infos[str_base_jisu];
         if (!orderCnt)// 현재 지수에는 신규 진입 정보가 없으므로 리턴
@@ -388,11 +392,7 @@ function doNewEnterJob(fitem, kitem, curBaseJisu, curBaseJisuDir, orderRequestDi
                     str_base_jisu, NewEnterOrderCntMap[str_base_jisu], items_info.item_l_code, parseFloat(items_info.item_l.price).toFixed(2),
                     items_info.item_s_code, parseFloat(items_info.item_s.price).toFixed(2), orderCnt));
 
-        var order_record = NewEnterOrderCntMap[str_base_jisu];
-        if (order_record)
-            NewEnterOrderCntMap[str_base_jisu] += 2 * orderCnt;// L/S하나씩 요청 두개가 발생하므로 곱하기 2해준다
-        else 
-            NewEnterOrderCntMap[str_base_jisu] = 2 * orderCnt;// L/S하나씩 요청 두개가 발생하므로 곱하기 2해준다
+        NewEnterOrderCntMap[str_base_jisu] = 2 * orderCnt;// L/S하나씩 요청 두개가 발생하므로 곱하기 2해준다
         // 신규 주문을 생성한다. 
         CurNewOrderRequestInfo = new OrderRequestInfoLongShort(orderTypeCOrP, curBaseJisu, 
                 items_info.item_l_code, items_info.item_l.price, orderCnt, items_info.item_s_code, items_info.item_s.price, orderCnt, 
