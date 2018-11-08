@@ -478,22 +478,114 @@ class OrderRequestInfo{
             this.cbFunc_(eventType, orderInfo, signInfo);
         }
     }
+    toString() { return util.format("id:%d, bj:%s, ot:%s, gc:%s, p:%s, q:%d, oc:%d, sc:%d",
+                this.id_, parseFloat(this.baseJisu_).toFixed(2), this.optionType_, this.goodsCode_,
+                parseFloat(this.price_).toFixed(2), this.quantity_, this.orderedCnt_, this.signedCnt_);
+    }
 }
 OrderRequestInfo.orderRequestInfoIdSeq_ = 0;
 
-class NewOrderRequestLongShort{
-    constructor(optionType, baseJisu, goodsCodeL, priceL, quantityL, goodsCodeS, priceS, quantityS, cbFunc, dir = "U", isLongPeriod = true) {
-        this.id_ = NewOrderRequestLongShort.orderRequestInfoIdSeq_++;
+class CompositeOrderRequest{
+    constructor(baseJisu, goodsType0, goodsCode0, lors0, price0, quantity0, goodsType1, goodsCode1, lors1, price1, quantity1, cbFunc, dir = "U", isLongPeriod = true) {
+        this.id_ = CompositeOrderRequest.orderRequestInfoIdSeq_++;
         this.baseJisu_ = baseJisu;
         this.dir_ = dir;
         this.cbFunc_ = cbFunc;
-        this.optionType_ = optionType;
         this.positionInfoPairArray_ = new Array();
         this.positionInfoPairId_ = 0;
         this.isLongPeriod_ = isLongPeriod;
         
-        this.long_ = new OrderRequestInfo(baseJisu, optionType, "L", goodsCodeL, priceL, quantityL, null);
-        this.short_ = new OrderRequestInfo(baseJisu, optionType, "S", goodsCodeS, priceS, quantityS, null);
+        this.orderRequest0_ = new OrderRequestInfo(baseJisu, goodsType0, lors0, goodsCode0, price0, quantity0, null);
+        this.orderRequest1_ = new OrderRequestInfo(baseJisu, goodsType1, lors1, goodsCode1, price1, quantity1, null);
+    }
+
+    addPositionInfoPair(positionInfo0, positionInfo1) {
+        if (!positionInfo0 && !positionInfo1)
+            return -1;
+        var tmp = PairId++; 
+        if (positionInfo0) {
+            positionInfo0.setPairId(tmp);
+        }
+        if (positionInfo1) {
+            positionInfo1.setPairId(tmp);
+        }
+        this.positionInfoPairArray_.push({"id":tmp, "0":positionInfo0, "1":positionInfo1, "ot":this.optionType_, "orid":this.id_});
+        return tmp;
+    }
+    getPositionInfoPairs() { return this.positionInfoPairArray_;}
+    getId() { return this.id_;}
+    setId(id) { this.id_ = id;}
+    getBaseJisu() { return this.baseJisu_;}
+    getGoodsType(idx) { if (idx===0) return this.orderRequest0_.getOptionType();return this.orderRequest1_.getGoodsCode();}
+    getGoodsCode(idx) { if (idx===0) return this.orderRequest0_.getGoodsCode();return this.orderRequest1_.getGoodsCode();}
+    getPrice(idx) { if (idx===0) return this.orderRequest0_.getPrice();return this.orderRequest1_.getPrice();}
+    getQuantity(idx) { if (idx===0) return this.orderRequest0_.getQuantity();return this.orderRequest1_.getQuantity();}
+    setQuantity(idx, value) { if (idx===0) this.orderRequest0_.setQuantity(value);else this.orderRequest1_.setQuantity(value);}
+    getSignedCnt(idx) { if (idx===0) return this.orderRequest0_.getSignedCnt();return this.orderRequest1_.getSignedCnt();}
+    canOrderCnt(idx) { if (idx===0) return this.orderRequest0_.canOrderCnt();return this.orderRequest1_.canOrderCnt();}
+    incSigned(idx, signedPrice, signedCnt) { 
+        if (idx===0) 
+            this.orderRequest0_.incSigned(signedPrice, signedCnt);
+        else 
+            this.orderRequest1_.incSigned(signedPrice, signedCnt);
+    }
+    getSignedPrice(idx) { 
+        if (idx===0) 
+            return this.orderRequest0_.getSignedPrice();
+        else 
+            return this.orderRequest1_.getSignedPrice();
+    } 
+    setOrderedCnt(idx, orderCnt) { if (idx===0) this.orderRequest0_.setOrderedCnt(orderCnt); else this.orderRequest1_.setOrderedCnt(orderCnt);}
+    getOrderedCnt(idx) { if (idx===0) return this.orderRequest0_.getOrderedCnt();return this.orderRequest1_.getOrderedCnt();}
+    resetOrderedCnt(idx) { if (idx===0) this.orderRequest0_.resetOrderedCnt();else this.orderRequest1_.resetOrderedCnt();}
+    isAbleToOrder(idx) { 
+        if (!this.getGoodsCode(idx)) 
+            return true;
+
+        if (this.getOrderedCnt(idx) > 0) 
+            return false;
+        return this.canOrderCnt(idx) > 0;
+    }
+
+    isAbleToOrderAll() { 
+        if (this.isAbleToOrder(0) && this.isAbleToOrder(1))
+            return true;
+        else
+            return false;
+    }
+    isCompleted(idx) { 
+        if (this.getOrderedCnt(idx) > 0) 
+            return false;
+        return this.canOrderCnt(idx) === 0;
+    }
+    isCompletedAll() { 
+        if (this.getOrderedCnt(0) > 0) 
+            return false;
+        if (this.getOrderedCnt(1) > 0) 
+            return false;
+        if (this.canOrderCnt(0) === 0 && this.canOrderCnt(1) === 0) 
+            return true;
+
+        return false;
+    }
+    on(eventType, orderInfo, signInfo) { 
+        if (this.cbFunc_)
+            this.cbFunc_(eventType, orderInfo, signInfo);
+    }
+    getDir() {return this.dir_;}
+    setDir(value) {this.dir_ = value;}
+
+    isLongPeriod() {return this.isLongPeriod_;}
+    setLongPeriod(value) {this.isLongPeriod_ = value;}
+    toString() { return this.orderRequest0_.toString() + " | " + this.orderRequest1_.toString();} 
+}
+CompositeOrderRequest.orderRequestInfoIdSeq_ = 0;
+
+
+class NewOrderRequestLongShort extends CompositeOrderRequest {
+    constructor(optionType, baseJisu, goodsCodeL, priceL, quantityL, goodsCodeS, priceS, quantityS, cbFunc, dir = "U", isLongPeriod = true) {
+        super(baseJisu, optionType, goodsCodeL, "L", priceL, quantityL, optionType, goodsCodeS, "S", priceS, quantityS, cbFunc, dir, isLongPeriod);
+        console.log(this.toString());
     }
 
     addPositionInfoPair(positionInfoL, positionInfoS) {
@@ -509,80 +601,27 @@ class NewOrderRequestLongShort{
         this.positionInfoPairArray_.push({"id":tmp, "L":positionInfoL, "S":positionInfoS, "ot":this.optionType_, "orid":this.id_});
         return tmp;
     }
-    getPositionInfoPairs() { return this.positionInfoPairArray_;}
-    getId() { return this.id_;}
-    setId(id) { this.id_ = id;}
-    getBaseJisu() { return this.baseJisu_;}
-    getOptionType() { return this.optionType_;}
-    getGoodsCode(lors) { if (lors==="L") return this.long_.getGoodsCode();return this.short_.getGoodsCode();}
-    getPrice(lors) { if (lors==="L") return this.long_.getPrice();return this.short_.getPrice();}
-    getQuantity(lors) { if (lors==="L") return this.long_.getQuantity();return this.short_.getQuantity();}
-    setQuantity(lors, value) { if (lors==="L") this.long_.setQuantity(value);else this.short_.setQuantity(value);}
-    getSignedCnt(lors) { if (lors==="L") return this.long_.getSignedCnt();return this.short_.getSignedCnt();}
-    canOrderCnt(lors) { if (lors==="L") return this.long_.canOrderCnt();return this.short_.canOrderCnt();}
-    incSigned(lors, signedPrice, signedCnt) { 
-        if (lors==="L") 
-            this.long_.incSigned(signedPrice, signedCnt);
-        else 
-            this.short_.incSigned(signedPrice, signedCnt);
-    }
-    getSignedPrice(lors) { 
-        if (lors==="L") 
-            return this.long_.getSignedPrice();
-        else 
-            return this.short_.getSignedPrice();
-    } 
-    setOrderedCnt(lors, orderCnt) { if (lors==="L") this.long_.setOrderedCnt(orderCnt); else this.short_.setOrderedCnt(orderCnt);}
-    getOrderedCnt(lors) { if (lors==="L") return this.long_.getOrderedCnt();return this.short_.getOrderedCnt();}
-    resetOrderedCnt(lors) { if (lors==="L") this.long_.resetOrderedCnt();else this.short_.resetOrderedCnt();}
-    isAbleToOrder(lors) { 
-        if (!this.getGoodsCode(lors)) 
-            return true;
-
-        if (this.getOrderedCnt(lors) > 0) 
-            return false;
-        return this.canOrderCnt(lors) > 0;
-    }
-
-    isAbleToOrderAll() { 
-        if (this.isAbleToOrder("L") && this.isAbleToOrder("S"))
-            return true;
-        else
-            return false;
-    }
-    isCompleted(lors) { 
-        if (this.getOrderedCnt(lors) > 0) 
-            return false;
-        return this.canOrderCnt(lors) === 0;
-    }
-    isCompletedAll() { 
-        if (this.getOrderedCnt("L") > 0) 
-            return false;
-        if (this.getOrderedCnt("S") > 0) 
-            return false;
-        if (this.canOrderCnt("L") === 0 && this.canOrderCnt("S") === 0) 
-            return true;
-
-        return false;
-    }
-    on(eventType, orderInfo, signInfo) { 
-        if (this.cbFunc_)
-            this.cbFunc_(eventType, orderInfo, signInfo);
-    }
-    getDir() {return this.dir_;}
-    setDir(value) {this.dir_ = value;}
-
-    isLongPeriod() {return this.isLongPeriod_;}
-    setLongPeriod(value) {this.isLongPeriod_ = value;}
+    getOptionType() { return super.getGoodsType(0);}
+    getGoodsCode(lors) { return super.getGoodsCode(lors==="L"?0:1);}
+    getPrice(lors) { return super.getPrice(lors==="L"?0:1);}
+    getQuantity(lors) { return super.getQuantity(lors==="L"?0:1);}
+    setQuantity(lors, value) { super.setQuantity(lors==="L"?0:1, value);}
+    getSignedCnt(lors) { return super.getSignedCnt(lors==="L"?0:1);}
+    canOrderCnt(lors) { return super.canOrderCnt(lors==="L"?0:1);}
+    incSigned(lors, signedPrice, signedCnt) { super.incSigned(lors==="L"?0:1, signedPrice, signedCnt);}
+    getSignedPrice(lors) { return super.getSignedPrice(lors==="L"?0:1);} 
+    setOrderedCnt(lors, orderCnt) { super.setOrderedCnt(lors==="L"?0:1, orderCnt);}
+    getOrderedCnt(lors) { return super.getOrderedCnt(lors==="L"?0:1);}
+    resetOrderedCnt(lors) { super.resetOrderedCnt(lors==="L"?0:1);}
+    isAbleToOrder(lors) { return super.isAbleToOrder(lors==="L"?0:1);}
+    isCompleted(lors) { return super.isCompleted(lors==="L"?0:1);}
 }
-NewOrderRequestLongShort.orderRequestInfoIdSeq_ = 0;
 
 class PayoffOrderRequestLongShort extends NewOrderRequestLongShort {
     constructor(dir, optionType, baseJisu, initJisu, payoffTargetJisu, losscutTargetJisu, srcPairId,
         goodsCodeL, priceL, quantityL, newL, goodsCodeS, priceS, quantityS, newS, 
         cbFunc, orgPosLorS, isLongPeriod = true) {
         super(optionType, baseJisu, goodsCodeL, priceL, quantityL, goodsCodeS, priceS, quantityS, cbFunc, dir, isLongPeriod);
-        this.id_ = NewOrderRequestLongShort.orderRequestInfoIdSeq_++;
         this.initJisu_ = initJisu;
         this.payoffTargetPrice_ = payoffTargetJisu;
         this.losscutTargetprice_ = losscutTargetJisu;
@@ -598,16 +637,7 @@ class PayoffOrderRequestLongShort extends NewOrderRequestLongShort {
     getLosscutTargetJisu() { return this.losscutTargetprice_;}
     setPayoffTargetJisu(value) { this.payoffTargetPrice_ = value;}
     setLosscutTargetJisu(value) { this.losscutTargetprice_ = value;}
-    
-    isNewPosition(lors) { 
-        if (lors==="L") 
-            return this.newL_;
-        else 
-            return this.newS_;
-            
-        return false;
-    } 
-    
+    isNewPosition(lors) { return (lors==="L")?this.newL_:this.newS_;} 
     getSrcPairId() { return this.srcPairId_;}
     setSrcPairId(value) { this.srcPairId_ = value;}
     getPayoffPairId() { return this.payoffPairId_;}
@@ -615,6 +645,7 @@ class PayoffOrderRequestLongShort extends NewOrderRequestLongShort {
     getOrgPosLorS() { return this.orgPosLorS_;}
 }
 
+module.exports.CompositeOrderRequest = CompositeOrderRequest;
 module.exports.OrderRequestInfoLongShort = NewOrderRequestLongShort;
 module.exports.PositionInfo = PositionInfo;
 module.exports.OrderRequestInfoPayoff = PayoffOrderRequestLongShort;

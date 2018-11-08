@@ -344,7 +344,7 @@ function changeEnterStartJisu(curBaseJisu, orderRequestDir, minStartPrice, remai
             enter_jisu = FirstEnterBaseJisu - PayoffPointUnit;
         else
             enter_jisu = FirstEnterBaseJisu + PayoffPointUnit;
-        console.log("changeEnterStartJisu. 최초 수익 목표 달성후 최소 진입 기준 가격 변경: " + parseFloat(min_start_price).toFixed(2) + " => " + parseFloat(enter_jisu).toFixed(2));
+        console.log("changeEnterStartJisu. 최초 수익 목표 달성후 최소 진입 기준 가격 변경: " + parseFloat(minStartPrice).toFixed(2) + " => " + parseFloat(enter_jisu).toFixed(2));
         EnterStartPrice = enter_jisu;
         FirstEnterBaseJisu = 0;
         return true;
