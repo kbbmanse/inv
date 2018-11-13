@@ -338,12 +338,12 @@ function getEnterTargetInfos(curBaseJisu, orderRequestDir) {
 
 function changeEnterStartJisu(curBaseJisu, orderRequestDir, minStartPrice, remain) {
     // 최초 수익 목표 도달했다면 다음번 신규 진입을 결정하는 가격을 변경(수익을 얻어 청산을 했으면 최초 진입가보다 더 낮은 가격이 안되면 진입안하게 하려는 의도)
-    if (IsChangeStartPrice && FirstEnterBaseJisu && remain == 0.0 && ((orderRequestDir === "U" && curBaseJisu >= FirstEnterBaseJisu + PayoffPointUnit) || (orderRequestDir === "D" && curBaseJisu <= FirstEnterBaseJisu - PayoffPointUnit))) {
+    if (IsChangeStartPrice && FirstEnterBaseJisu && remain == 0.0 && ((orderRequestDir === "U" && curBaseJisu >= FirstEnterBaseJisu + EnterPointUnit) || (orderRequestDir === "D" && curBaseJisu <= FirstEnterBaseJisu - EnterPointUnit))) {
         var enter_jisu;
         if (orderRequestDir === "U")
-            enter_jisu = FirstEnterBaseJisu - PayoffPointUnit;
+            enter_jisu = FirstEnterBaseJisu - EnterPointUnit;
         else
-            enter_jisu = FirstEnterBaseJisu + PayoffPointUnit;
+            enter_jisu = FirstEnterBaseJisu + EnterPointUnit;
         console.log("changeEnterStartJisu. 최초 수익 목표 달성후 최소 진입 기준 가격 변경: " + parseFloat(minStartPrice).toFixed(2) + " => " + parseFloat(enter_jisu).toFixed(2));
         EnterStartPrice = enter_jisu;
         FirstEnterBaseJisu = 0;
