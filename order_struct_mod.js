@@ -437,6 +437,7 @@ class OrderRequestInfo{
         this.orderedCnt_ = 0;
         this.signedCnt_ = 0;
         this.signedPriceTotal_ = 0.0;
+        this.lOrS_ = lOrS;
         this.cbFunc_ = cbFunc;
     }
 
@@ -445,6 +446,8 @@ class OrderRequestInfo{
     getBaseJisu() { return this.baseJisu_;}
     getOptionType() { return this.optionType_;}
     getGoodsCode() { return this.goodsCode_;}
+    getLongOrShort() { return this.lOrS_;}
+    setLongOrShort(value) { this.lOrS_ = value;}
     getPrice() { return this.price_;}
     getQuantity() { return this.quantity_;}
     setQuantity(value) { this.quantity_ = value;}
@@ -516,8 +519,10 @@ class CompositeOrderRequest{
     getId() { return this.id_;}
     setId(id) { this.id_ = id;}
     getBaseJisu() { return this.baseJisu_;}
-    getGoodsType(idx) { if (idx===0) return this.orderRequest0_.getOptionType();return this.orderRequest1_.getGoodsCode();}
+    getGoodsType(idx) { if (idx===0) return this.orderRequest0_.getOptionType();return this.orderRequest1_.getOptionType();}
     getGoodsCode(idx) { if (idx===0) return this.orderRequest0_.getGoodsCode();return this.orderRequest1_.getGoodsCode();}
+    getLongOrShort(idx) { if (idx===0) return this.orderRequest0_.getLongOrShort();return this.orderRequest1_.getLongOrShort();}
+    setLongOrShort(idx, value) { if (idx===0) this.orderRequest0_.setLongOrShort(value);else this.orderRequest1_.setLongOrShort(value);}
     getPrice(idx) { if (idx===0) return this.orderRequest0_.getPrice();return this.orderRequest1_.getPrice();}
     getQuantity(idx) { if (idx===0) return this.orderRequest0_.getQuantity();return this.orderRequest1_.getQuantity();}
     setQuantity(idx, value) { if (idx===0) this.orderRequest0_.setQuantity(value);else this.orderRequest1_.setQuantity(value);}
