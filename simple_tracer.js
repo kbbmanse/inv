@@ -4,7 +4,7 @@ const sqlite3 = require("sqlite3");
 const OrderComm = require("./order_base.js");
 const CommRedis = require("./order_redis_mgr.js");
 const OrderStruct = require("./order_struct_mod.js");
-const OrderRequestInfoLongShort = OrderStruct.OrderRequestInfoLongShort;
+const LSEnterOrderRequest = OrderStruct.LSEnterOrderRequest;
 const PositionInfo = OrderStruct.PositionInfo;
 const OrderRequestMgr = require("./order_request_mgr.js").OrderRequestMgr;
 const Config = require("./config.js");
@@ -147,12 +147,12 @@ const HistoryDb = new sqlite3.Database(DbFilePath, sqlite3.OPEN_READWRITE, funct
 
         var order_request_id = row["order_request_id"];
         if (order_request_id === null || order_request_id === undefined) {
-            var orid = OrderRequestInfoLongShort.orderRequestInfoIdSeq_++;
+            var orid = LSEnterOrderRequest.orderRequestInfoIdSeq_++;
             position_info.setOrderRequestInfoId(orid);
         }
         else {
-            if (OrderRequestInfoLongShort.orderRequestInfoIdSeq_ <= order_request_id)
-                OrderRequestInfoLongShort.orderRequestInfoIdSeq_ = order_request_id + 1;
+            if (LSEnterOrderRequest.orderRequestInfoIdSeq_ <= order_request_id)
+                LSEnterOrderRequest.orderRequestInfoIdSeq_ = order_request_id + 1;
             position_info.setOrderRequestInfoId(order_request_id);
         }
 
@@ -217,13 +217,13 @@ function processNewOrder(orderReqInfo, baseJisuDir) {
         return;
 
     if (baseJisuDir > 0) {
-        if (orderReqInfo.getOptionType() === "C") 
+        if (orderReqInfo.getGoodsType() === "C") 
             enterNewOrder(orderReqInfo, base_jisu, item_L, item_code_L, "L", item_S, item_code_S, "S", order_cnt);
         else 
             enterNewOrder(orderReqInfo, base_jisu, item_S, item_code_S, "S", item_L, item_code_L, "L", order_cnt);
     }
     else {
-        if (orderReqInfo.getOptionType() === "C") 
+        if (orderReqInfo.getGoodsType() === "C") 
             enterNewOrder(orderReqInfo, base_jisu, item_S, item_code_S, "S", item_L, item_code_L, "L", order_cnt);
         else 
             enterNewOrder(orderReqInfo, base_jisu, item_L, item_code_L, "L", item_S, item_code_S, "S", order_cnt);
@@ -394,7 +394,7 @@ function doNewEnterJob(fitem, kitem, curBaseJisu, curBaseJisuDir, orderRequestDi
 
         NewEnterOrderCntMap[str_base_jisu] = 2 * orderCnt;// L/S하나씩 요청 두개가 발생하므로 곱하기 2해준다
         // 신규 주문을 생성한다. 
-        CurNewOrderRequestInfo = new OrderRequestInfoLongShort(orderTypeCOrP, curBaseJisu, 
+        CurNewOrderRequestInfo = new LSEnterOrderRequest(orderTypeCOrP, curBaseJisu, 
                 items_info.item_l_code, items_info.item_l.price, orderCnt, items_info.item_s_code, items_info.item_s.price, orderCnt, 
                 null, orderRequestDir, IsLongPeriod);
         // 생성한 주문을 처리한다. 
@@ -407,7 +407,7 @@ function doNewEnterJob(fitem, kitem, curBaseJisu, curBaseJisuDir, orderRequestDi
             const order_req_dir_inv = orderRequestDir === "U"?"D":"U";
             const order_type_corp_inv = orderTypeCOrP === "C"?"P":"C";
             const items_info_inv = getTargetItemsInfoByDir(fitem, order_req_dir_inv, order_type_corp_inv);
-            HedgeNewOrderRequestInfo = new OrderRequestInfoLongShort(order_type_corp_inv, curBaseJisu, 
+            HedgeNewOrderRequestInfo = new LSEnterOrderRequest(order_type_corp_inv, curBaseJisu, 
                     items_info_inv.item_l_code, items_info_inv.item_l.price, OneWayOrderedCnt, items_info_inv.item_s_code, items_info_inv.item_s.price, OneWayOrderedCnt, 
                     null, order_req_dir_inv, IsLongPeriod);
             console.log(util.format("doNewEnterJob. 헷지포지션 신규 진입- 진입지수:%s, L:%s, %s, S:%s, %s, 주문수량:%d", 
