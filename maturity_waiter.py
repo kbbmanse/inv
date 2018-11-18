@@ -4,7 +4,7 @@ const sqlite3 = require("sqlite3");
 const OrderComm = require("./order_base.js");
 const CommRedis = require("./order_redis_mgr.js");
 const OrderStruct = require("./order_struct_mod.js");
-const LSEnterOrderRequest = OrderStruct.LSEnterOrderRequest;
+const CompositeOrderRequest = OrderStruct.CompositeOrderRequest;
 const PositionInfo = OrderStruct.PositionInfo;
 const OrderRequestMgr = require("./order_request_mgr.js").OrderRequestMgr;
 const Config = require("./config.js");
@@ -39,75 +39,25 @@ var OrderTypeCOrP = "P";
 var IsFixedOrderUnit = true;
 var OptMonIdx = 0;
 var FutMonIdx = 0;
-var MaxEnterCnt = 4;
+var MaxEnterCnt = 1;
 var OrderRequestDir = "U";
 var IsLongPeriod = true;
 var IsLongPeriodHedge = true;
 var IsChangeStartPrice = true;
 
-console.log(util.format("Usage: node %s OrderRequestDir OrderTypeCOrP IsLongPeriod OrderUnit EnterPointUnit PayoffPointUnit EnterMinProfit EnterStartPrice IsFixedOrderUnit MaxEnterCnt IsLongPeriodHedge IsChangeStartPrice OptMonIdx FutMonIdx", process.argv[1]));
-console.log(util.format("ex: node %s %s %s 1 %d %d %d %d %d 1 %d 1 1 %d %d", 
-            process.argv[1], OrderRequestDir, OrderTypeCOrP, OrderUnit, EnterPointUnit, PayoffPointUnit, EnterMinProfit, 270.20, MaxEnterCnt, OptMonIdx, FutMonIdx));
+console.log(util.format("Usage: node %s OrderUnit", process.argv[1]));
+console.log(util.format("ex: node %s %d",
+            process.argv[1], OrderUnit);
 
-if (process.argv.length >= 3) {
-   if (process.argv[2] === "D")
-       OrderRequestDir = "D";
-}
-
-if (process.argv.length >= 4) 
-    OrderTypeCOrP = process.argv[3];
-
-if (process.argv.length >= 5) {
-   if (!parseInt(process.argv[4]))
-       IsLongPeriod = false;
-}
-
-if (process.argv.length >= 6) 
-    OrderUnit = parseInt(process.argv[5]);
-
-if (process.argv.length >= 7) 
-    EnterPointUnit = parseFloat(process.argv[6]);
-
-if (process.argv.length >= 8) 
-    PayoffPointUnit = parseFloat(process.argv[7]);
-
-if (process.argv.length >= 9) 
-   EnterMinProfit = parseFloat(process.argv[8]);
-
-if (process.argv.length >= 10) 
-    EnterStartPrice = parseFloat(process.argv[9]);
-
-if (process.argv.length >= 11) {
-    let fixed = parseInt(process.argv[10]);
-    if (!fixed) 
-        IsFixedOrderUnit = false;
-}
-
-if (process.argv.length >= 12) 
-    MaxEnterCnt = parseInt(process.argv[11]);
-
-if (process.argv.length >= 13) {
-   if (!parseInt(process.argv[12]))
-       IsLongPeriodHedge = false;
-}
-
-if (process.argv.length >= 14) {
-   if (!parseInt(process.argv[13]))
-       IsChangeStartPrice = false;
-}
-
-if (process.argv.length >= 15) 
-   OptMonIdx = parseInt(process.argv[14]);
-
-if (process.argv.length >= 16) 
-   FutMonIdx = parseInt(process.argv[15]);
+if (process.argv.length >= 3) 
+    OrderUnit = parseInt(process.argv[2]);
 
 const orderComm = new OrderComm(Config["comm_port"]);
 const orderRequestMgr = new OrderRequestMgr(orderComm);
 const commRedis = new CommRedis(Config["redis_host"], Config["redis_port"], trading, OptMonIdx, FutMonIdx);
 
 const HistoryDb = new sqlite3.Database(DbFilePath, sqlite3.OPEN_READWRITE, function(error) {
-    this.each("select * from p_positions_tbl order by idx;", function(err, row) {
+    this.each("select * from c_positions_tbl order by idx;", function(err, row) {
         var position_info = new PositionInfo(parseFloat(row["base_jisu"]).toFixed(2), row["gcode"], row["lors"], 
 				parseFloat(row["price"]).toFixed(2), row["quantity"], null, row["pair_id"], row["init_jisu"].toFixed(2));
         position_info.setId(row["idx"]);
@@ -147,12 +97,12 @@ const HistoryDb = new sqlite3.Database(DbFilePath, sqlite3.OPEN_READWRITE, funct
 
         var order_request_id = row["order_request_id"];
         if (order_request_id === null || order_request_id === undefined) {
-            var orid = LSEnterOrderRequest.orderRequestInfoIdSeq_++;
+            var orid = CompositeOrderRequest.orderRequestInfoIdSeq_++;
             position_info.setOrderRequestInfoId(orid);
         }
         else {
-            if (LSEnterOrderRequest.orderRequestInfoIdSeq_ <= order_request_id)
-                LSEnterOrderRequest.orderRequestInfoIdSeq_ = order_request_id + 1;
+            if (CompositeOrderRequest.orderRequestInfoIdSeq_ <= order_request_id)
+                CompositeOrderRequest.orderRequestInfoIdSeq_ = order_request_id + 1;
             position_info.setOrderRequestInfoId(order_request_id);
         }
 
@@ -196,72 +146,69 @@ function getLeadingZeroStr(data, fixedCnt) {
 function processNewOrder(orderReqInfo, baseJisuDir) {
     if (!baseJisuDir || !orderReqInfo)
         return;
-    
+
     if (orderReqInfo.isAbleToOrderAll() !== true)
         return;
 
-    const base_jisu = orderReqInfo.getBaseJisu(); 
-    const item_code_L = orderReqInfo.getGoodsCode("L"); 
-    const item_code_S = orderReqInfo.getGoodsCode("S"); 
-    const item_L = Board[item_code_L];
-    const item_S = Board[item_code_S];
+    const base_jisu = orderReqInfo.getBaseJisu();
+    const item_code_0 = orderReqInfo.getGoodsCode(0);
+    const item_code_1 = orderReqInfo.getGoodsCode(1);
+    const item_lors_0 = orderReqInfo.getLongOrShort(0);
+    const item_lors_1 = orderReqInfo.getLongOrShort(1);
+    const item_0 = Board[item_code_0];
+    const item_1 = Board[item_code_1];
 
     var order_cnt = orderReqInfo.canOrderCnt();
-    if (item_L.offerrem1 < order_cnt) 
-        order_cnt = item_L.offerrem1;
+    if (item_lors_0 === "L") {
+        if (item_0.offerrem1 < order_cnt)
+            order_cnt = item_0.offerrem1;
+    }
+    else {
+        if (item_0.bidrem1 < order_cnt)
+            order_cnt = item_0.bidrem1;
+    }
 
-    if (item_S.bidrem1 < order_cnt) 
-        order_cnt = item_S.bidrem1;
+    if (item_lors_1 === "L") {
+        if (item_1.offerrem1 < order_cnt)
+            order_cnt = item_1.offerrem1;
+    }
+    else {
+        if (item_1.bidrem1 < order_cnt)
+            order_cnt = item_1.bidrem1;
+    }
 
     if (order_cnt < 1) 
         return;
 
-    if (baseJisuDir > 0) {
-        if (orderReqInfo.getGoodsType() === "C") 
-            enterNewOrder(orderReqInfo, base_jisu, item_L, item_code_L, "L", item_S, item_code_S, "S", order_cnt);
-        else 
-            enterNewOrder(orderReqInfo, base_jisu, item_S, item_code_S, "S", item_L, item_code_L, "L", order_cnt);
-    }
-    else {
-        if (orderReqInfo.getGoodsType() === "C") 
-            enterNewOrder(orderReqInfo, base_jisu, item_S, item_code_S, "S", item_L, item_code_L, "L", order_cnt);
-        else 
-            enterNewOrder(orderReqInfo, base_jisu, item_L, item_code_L, "L", item_S, item_code_S, "S", order_cnt);
-    }
+    enterNewOrder(orderReqInfo, base_jisu, item_0, item_code_0, item_lors_0, item_1, item_code_1, item_lors_1, order_cnt);
 }
 
 const setPositionInfo = function(orderReqInfo, curBaseJisu, positionInfo, isLongPeriod, isNewEnter) {
     if (orderReqInfo.getDir() === 'U') {
-        if (CurEnterCnt < 2)
-            positionInfo.setPayoffTargetJisu(curBaseJisu + PayoffPointUnit);
-        else
-            positionInfo.setPayoffTargetJisu(curBaseJisu + EnterPointUnit);
-        positionInfo.setLosscutTargetJisu(curBaseJisu - EnterPointUnit);
+        positionInfo.setPayoffTargetJisu(curBaseJisu + PayoffPointUnit);
+        positionInfo.setLosscutTargetJisu(curBaseJisu - PayoffPointUnit);
     }
     else {
-        if (CurEnterCnt < 2)
-            positionInfo.setPayoffTargetJisu(curBaseJisu - PayoffPointUnit);
-        else
-            positionInfo.setPayoffTargetJisu(curBaseJisu - EnterPointUnit);
-        positionInfo.setLosscutTargetJisu(curBaseJisu + EnterPointUnit);
+        positionInfo.setPayoffTargetJisu(curBaseJisu - PayoffPointUnit);
+        positionInfo.setLosscutTargetJisu(curBaseJisu + PayoffPointUnit);
     }
     positionInfo.setDir(orderReqInfo.getDir());
    
     positionInfo.setLongPeriod(isLongPeriod);
     positionInfo.setNewEnter(isNewEnter);
     positionInfo.setOrderInfo(null);
-    HistoryDb.run("insert into p_positions_tbl values (?,?,?,?,?,?,?,?,?,?,?,?,?,?);",
+    HistoryDb.run("insert into c_positions_tbl values (?,?,?,?,?,?,?,?,?,?,?,?,?,?);",
         [positionInfo.getId(), positionInfo.getGoodsCode(), positionInfo.getLongOrShort(), positionInfo.getPrice(), positionInfo.getQuantity(),
             positionInfo.getBaseJisu(), positionInfo.getBaseJisu(), positionInfo.getPayoffTargetJisu(), positionInfo.getLosscutTargetJisu(),
             null, orderReqInfo.getDir(), orderReqInfo.getId(), CurDateStr, positionInfo.isLongPeriod()?1:0]);
-    HistoryDb.run("insert into p_positions_history_tbl values (NULL,?,?,?,?,?,?,?,?,?);", [CurDateStr, 'E', positionInfo.getGoodsCode(),
+    HistoryDb.run("insert into c_positions_history_tbl values (NULL,?,?,?,?,?,?,?,?,?);", [CurDateStr, 'E', positionInfo.getGoodsCode(),
         positionInfo.getLongOrShort(), positionInfo.getPrice(), positionInfo.getQuantity(), positionInfo.getBaseJisu(), null, null]);
     console.log(util.format("setPositionInfo.cb. 포지션 체결- PID:%d, 진입지수:%s, 코드:%s, %s, %s, %d", positionInfo.getId(), parseFloat(positionInfo.getBaseJisu()).toFixed(2),
         positionInfo.getGoodsCode(), positionInfo.getLongOrShort(), parseFloat(positionInfo.getPrice()).toFixed(2), positionInfo.getQuantity()));
     PositionMap[positionInfo.getId()] = positionInfo;
 };
 
-async function createNewOrderRequest(orderReqInfo, curBaseJisu, item, itemCode, lors, orderCnt, posLS, isNewEnter) {
+async function createNewOrderRequest(orderReqInfo, curBaseJisu, posIdx, item, itemCode, lors, orderCnt, posPair, isNewEnter) {
     var order_price;
     // 해당 지수 호가 남은 카운트에서 주문 하는 양을 빼준다. 다음 호가 정보가 오기전까지는 내부적으로 더 정확하게 유지하기 위함 
     if (lors === "S") {
@@ -273,46 +220,44 @@ async function createNewOrderRequest(orderReqInfo, curBaseJisu, item, itemCode, 
         order_price = item.offerho1;
     }
     const position_info = await orderRequestMgr.createOrderRequestPromise(curBaseJisu, item, itemCode, lors, order_price, orderCnt);
-    orderReqInfo.incSigned(lors, position_info.getPrice(), orderCnt);
-    orderReqInfo.resetOrderedCnt(lors);
+    orderReqInfo.incSigned(posIdx, position_info.getPrice(), orderCnt);
+    orderReqInfo.resetOrderedCnt(posIdx);
     setPositionInfo(orderReqInfo, curBaseJisu, position_info, IsLongPeriod, isNewEnter);
-    posLS[lors] = position_info;
+    posPair["" + posIdx] = position_info;
 }
 
 async function enterNewOrder(orderReqInfo, curBaseJisu, item0, itemCode0, lors0, item1, itemCode1, lors1, orderCnt) {
     console.log("enterNewOrder. start");
-    const posLS = {};
-    orderReqInfo.setOrderedCnt(lors0, orderCnt);
-    orderReqInfo.setOrderedCnt(lors1, orderCnt);
-    await createNewOrderRequest(orderReqInfo, curBaseJisu, item0, itemCode0, lors0, orderCnt, posLS, CurNewOrderRequestInfo === orderReqInfo);
-    await createNewOrderRequest(orderReqInfo, curBaseJisu, item1, itemCode1, lors1, orderCnt, posLS, CurNewOrderRequestInfo === orderReqInfo);
-    const pos_L = posLS["L"];
-    const pos_S = posLS["S"];
+    const posPair = {};
+    orderReqInfo.setOrderedCnt(0, orderCnt);
+    orderReqInfo.setOrderedCnt(1, orderCnt);
+    await createNewOrderRequest(orderReqInfo, curBaseJisu, 0, item0, itemCode0, lors0, orderCnt, posPair, CurNewOrderRequestInfo === orderReqInfo);
+    await createNewOrderRequest(orderReqInfo, curBaseJisu, 1, item1, itemCode1, lors1, orderCnt, posPair, CurNewOrderRequestInfo === orderReqInfo);
+    const pos_0 = posPair["0"];
+    const pos_1 = posPair["1"];
 
-    if (pos_L || pos_S) {
-        const pair_id = orderReqInfo.addPositionInfoPair(pos_L, pos_S);
-        if (pos_L) {
-            HistoryDb.run("update p_positions_tbl set pair_id=? where idx=?;", [pair_id, pos_L.getId()]);
-            pos_L.setPairId(pair_id);
+    if (pos_0 || pos_1) {
+        const pair_id = orderReqInfo.addPositionInfoPair(pos_0, pos_1);
+        if (pos_0) {
+            HistoryDb.run("update c_positions_tbl set pair_id=? where idx=?;", [pair_id, pos_0.getId()]);
+            pos_0.setPairId(pair_id);
         }
-        if (pos_S) {
-            HistoryDb.run("update p_positions_tbl set pair_id=? where idx=?;", [pair_id, pos_S.getId()]);
-            pos_S.setPairId(pair_id);
+        if (pos_1) {
+            HistoryDb.run("update c_positions_tbl set pair_id=? where idx=?;", [pair_id, pos_1.getId()]);
+            pos_1.setPairId(pair_id);
         }
     }
     
     if (orderReqInfo.isCompletedAll()) {
         const position_info_pairs = orderReqInfo.getPositionInfoPairs();
-        console.log(util.format("enterNewOrder. 진입 주문 체결 완료- ORID:%d, L:%s, %s, %d, S:%s, %s, %d, 부분체결된 포지션쌍 카운트:%d",
+        console.log(util.format("enterNewOrder. 진입 주문 체결 완료- ORID:%d, 0:%s, %s, %s, %d, 1:%s, %s, %s, %d, 부분체결된 포지션쌍 카운트:%d",
             orderReqInfo.getId(),
-            orderReqInfo.getGoodsCode("L"), parseFloat(orderReqInfo.getPrice("L")).toFixed(2), orderReqInfo.getQuantity("L"),
-            orderReqInfo.getGoodsCode("S"), parseFloat(orderReqInfo.getPrice("S")).toFixed(2), orderReqInfo.getQuantity("S"),
+            orderReqInfo.getGoodsCode(0), orderReqInfo.getLongOrShort(0), parseFloat(orderReqInfo.getPrice(0)).toFixed(2), orderReqInfo.getQuantity(0),
+            orderReqInfo.getGoodsCode(1), orderReqInfo.getLongOrShort(1), parseFloat(orderReqInfo.getPrice(1)).toFixed(2), orderReqInfo.getQuantity(1),
             position_info_pairs.length));
 
         if (CurNewOrderRequestInfo && CurNewOrderRequestInfo === orderReqInfo) 
             CurNewOrderRequestInfo = null;
-        else if (HedgeNewOrderRequestInfo && HedgeNewOrderRequestInfo === orderReqInfo) 
-            HedgeNewOrderRequestInfo = null;
     }
     else 
         trading(Board, FCode, YmCode);
@@ -342,48 +287,19 @@ function getEnterTargetInfos(curBaseJisu, orderRequestDir) {
     return EnterTargetInfos;
 }
 
-function changeEnterStartJisu(curBaseJisu, orderRequestDir, minStartPrice, remain) {
-    // 최초 수익 목표 도달했다면 다음번 신규 진입을 결정하는 가격을 변경(수익을 얻어 청산을 했으면 최초 진입가보다 더 낮은 가격이 안되면 진입안하게 하려는 의도)
-    if (IsChangeStartPrice && FirstEnterBaseJisu && remain == 0.0 && ((orderRequestDir === "U" && curBaseJisu >= FirstEnterBaseJisu + EnterPointUnit) || (orderRequestDir === "D" && curBaseJisu <= FirstEnterBaseJisu - EnterPointUnit))) {
-        var enter_jisu;
-        if (orderRequestDir === "U")
-            enter_jisu = FirstEnterBaseJisu - EnterPointUnit;
-        else
-            enter_jisu = FirstEnterBaseJisu + EnterPointUnit;
-        console.log("changeEnterStartJisu. 최초 수익 목표 달성후 최소 진입 기준 가격 변경: " + parseFloat(minStartPrice).toFixed(2) + " => " + parseFloat(enter_jisu).toFixed(2));
-        EnterStartPrice = enter_jisu;
-        FirstEnterBaseJisu = 0;
-        return true;
-    }
-    return false;
-}
 
 function doNewEnterJob(fitem, kitem, curBaseJisu, curBaseJisuDir, orderRequestDir, orderTypeCOrP) {
-    const items_info = getTargetItemsInfoByDir(fitem, orderRequestDir, orderTypeCOrP);
-    if (!items_info)
+    const composite_info = getTargetItemsInfoByDir(fitem, orderRequestDir, orderTypeCOrP);
+    if (!composite_info)
         return;
 
-    var min_start_price = fitem.open;
-    if (EnterStartPrice !== undefined) {
-        min_start_price = EnterStartPrice;
-    }
-
-    if (HedgeNewOrderRequestInfo)
-        processNewOrder(HedgeNewOrderRequestInfo, curBaseJisuDir);
-
-    var remain = (min_start_price + EnterPointUnit - curBaseJisu) / EnterPointUnit;
-    remain = Number(remain.toFixed(3));
-    remain -= parseInt(remain);
-
-    if (changeEnterStartJisu(curBaseJisu, orderRequestDir, min_start_price, remain))
-        return;
-    // 만약 이미 주문이 들어가 있다면 바로 리턴 
+    // 만약 이미 주문이 들어가 있다면 바로 리턴
     if (CurNewOrderRequestInfo) {
         processNewOrder(CurNewOrderRequestInfo, curBaseJisuDir);
         return;
     }
-    // 신규 진입
-    if (!CurNewOrderRequestInfo && remain == 0.0 && CurEnterCnt < MaxEnterCnt && ((orderRequestDir === 'U' && curBaseJisu <= min_start_price) || (orderRequestDir === 'D' && curBaseJisu >= min_start_price))) {
+    // 신규 진입 조건 확인 및 처리 
+    if (!CurNewOrderRequestInfo && CurEnterCnt < MaxEnterCnt) {
         const str_base_jisu = curBaseJisu.toFixed(2);
         var order_record = NewEnterOrderCntMap[str_base_jisu];
         if (order_record)
@@ -395,32 +311,21 @@ function doNewEnterJob(fitem, kitem, curBaseJisu, curBaseJisuDir, orderRequestDi
             return;
 
         console.log(util.format("doNewEnterJob. 포지션 신규 진입- 진입지수:%s(지수별 누적수량:%d), L:%s, %s, S:%s, %s, 주문수량:%d", 
-                    str_base_jisu, NewEnterOrderCntMap[str_base_jisu], items_info.item_l_code, parseFloat(items_info.item_l.price).toFixed(2),
-                    items_info.item_s_code, parseFloat(items_info.item_s.price).toFixed(2), orderCnt));
+                    str_base_jisu, NewEnterOrderCntMap[str_base_jisu], composite_info.item_l_code, parseFloat(composite_info.item_l.price).toFixed(2),
+                    composite_info.item_s_code, parseFloat(composite_info.item_s.price).toFixed(2), orderCnt));
 
         NewEnterOrderCntMap[str_base_jisu] = 2 * orderCnt;// L/S하나씩 요청 두개가 발생하므로 곱하기 2해준다
         // 신규 주문을 생성한다. 
-        CurNewOrderRequestInfo = new LSEnterOrderRequest(orderTypeCOrP, curBaseJisu, 
-                items_info.item_l_code, items_info.item_l.price, orderCnt, items_info.item_s_code, items_info.item_s.price, orderCnt, 
-                null, orderRequestDir, IsLongPeriod);
-        // 생성한 주문을 처리한다. 
-        ++CurEnterCnt;
-        processNewOrder(CurNewOrderRequestInfo, curBaseJisuDir);
-        OneWayOrderedCnt += orderCnt;
 
-        if (CurEnterCnt == MaxEnterCnt && IsLongPeriod && IsLongPeriodHedge) {
-            const order_req_dir_inv = orderRequestDir === "U"?"D":"U";
-            const order_type_corp_inv = orderTypeCOrP === "C"?"P":"C";
-            const items_info_inv = getTargetItemsInfoByDir(fitem, order_req_dir_inv, order_type_corp_inv);
-            HedgeNewOrderRequestInfo = new LSEnterOrderRequest(order_type_corp_inv, curBaseJisu, 
-                    items_info_inv.item_l_code, items_info_inv.item_l.price, OneWayOrderedCnt, items_info_inv.item_s_code, items_info_inv.item_s.price, OneWayOrderedCnt, 
-                    null, order_req_dir_inv, IsLongPeriod);
-            console.log(util.format("doNewEnterJob. 헷지포지션 신규 진입- 진입지수:%s, L:%s, %s, S:%s, %s, 주문수량:%d", 
-                        str_base_jisu, items_info_inv.item_l_code, parseFloat(items_info_inv.item_l.price).toFixed(2),
-                        items_info_inv.item_s_code, parseFloat(items_info_inv.item_s.price).toFixed(2), OneWayOrderedCnt));
-            // 생성한 주문을 처리한다. 
-            processNewOrder(HedgeNewOrderRequestInfo, curBaseJisuDir);
-        }
+        CurNewOrderRequestInfo = new CompositeOrderRequest(curBaseJisu, composite_info.goods0.getGoodsType(), composite_info.goods0.getGoodsCode(), 
+            composite_info.goods0.getLongOrShort(), composite_info.goods0.getPrice(), composite_info.goods0.getQuantity(), 
+            composite_info.goods1.getGoodsType(), composite_info.goods1.getGoodsCode(), 
+            composite_info.goods1.getLongOrShort(), composite_info.goods1.getPrice(), composite_info.goods1.getQuantity(), 
+            null, composite_info.getOrderRequestDir(), composite_info.IsLongPeriod());
+        // 생성한 주문을 처리한다. 
+        processNewOrder(CurNewOrderRequestInfo, curBaseJisuDir);
+
+        ++CurEnterCnt;
     }
 }
 
@@ -623,7 +528,7 @@ function doPostPayoff(positionInfo, positionInfoPayoff, goodsCode, lors, payoffL
         console.log(util.format("doPostPayoff. positionInfo: %s, positionInfoPayoff: %s, remain: %d", positionInfo.toString(), positionInfoPayoff.toString(), remain_cnt));
         if (remain_cnt) {// 해당 포지션이 완전히 청산되지 않았을경우
             positionInfo.setQuantity(remain_cnt);
-            HistoryDb.run("update p_positions_tbl set quantity=? where idx=?;", [remain_cnt, positionInfo.getId()]);
+            HistoryDb.run("update c_positions_tbl set quantity=? where idx=?;", [remain_cnt, positionInfo.getId()]);
             orderRequestMgr.deletePositionInfo(positionInfoPayoff.getId());
             console.log(util.format("doPostPayoff. 포지션 부분 청산 - ORG_ID:%d BJ:%s 코드:%s LS:%s 매입가:%s 수량:%d | BJ:%s 청산가:%s LS:%s 청산수량:%d",
                         positionInfo.getId(), orgBaseJisuStr,
@@ -631,14 +536,14 @@ function doPostPayoff(positionInfo, positionInfoPayoff, goodsCode, lors, payoffL
                         curBaseJisuStr, parseFloat(orderPrice).toFixed(2), payoffLors, orderCnt));
         }
         else {// 완전히 청산된 경우
-            HistoryDb.run("delete from p_positions_tbl where idx=?;", [positionInfo.getId()]);// 원래 포지션 정보 디비에서 삭제
+            HistoryDb.run("delete from c_positions_tbl where idx=?;", [positionInfo.getId()]);// 원래 포지션 정보 디비에서 삭제
             let pl;
             if (lors === "L")
                 pl = (positionInfoPayoff.getPrice() - positionInfo.getPrice()) * positionInfo.getQuantity();
             else
                 pl = (positionInfo.getPrice() - positionInfoPayoff.getPrice()) * positionInfo.getQuantity();
 
-            HistoryDb.run("insert into p_positions_history_tbl values (NULL,?,?,?,?,?,?,?,?,?);",
+            HistoryDb.run("insert into c_positions_history_tbl values (NULL,?,?,?,?,?,?,?,?,?);",
                     [CurDateStr, 'P', goodsCode, payoffLors, positionInfo.getPrice(), positionInfo.getQuantity(), positionInfo.getBaseJisu(), positionInfoPayoff.getPrice(), pl]);
             PositionMap.delete(positionInfo.getId());
             orderRequestMgr.deletePositionInfo(positionInfoPayoff.getId());

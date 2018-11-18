@@ -338,10 +338,119 @@ class LSPayoffOrderRequest extends LSEnterOrderRequest {
     setPayoffPairId(id) { this.payoffPairId_ = id;}
     getOrgPosLorS() { return this.orgPosLorS_;}
 }
+
+class CompositeCoveredOrderRequest {
+    constructor(baseJisu, futureLongOrShort, futureGoodsCodeC, futurePriceC, futureQuantityC, 
+            futureGoodsCodeP, futurePriceP, futureQuantityP, 
+            coveredLongOrShort, coveredGoodsType, coveredGoodsCode, coveredPrice, coveredQuantity, 
+            cbFunc, dir = "U", isLongPeriod = true) {
+
+        this.id_ = CompositeOrderRequest.orderRequestInfoIdSeq_++;
+        this.baseJisu_ = baseJisu;
+        this.dir_ = dir;
+        this.cbFunc_ = cbFunc;
+        this.positionInfoPairArray_ = new Array();
+        this.positionInfoPairId_ = 0;
+        this.isLongPeriod_ = isLongPeriod;
+        this.futureLongOrShort_ = futureLongOrShort;
+        this.compositeFutureOrder_ = new CompositeOrderRequest(baseJisu, "C", futureGoodsCodeC, futureLongOrShort==="L"?"L":"S", futurePriceC, futureQuantityC, 
+                "P", futureCoodsCodeP, futureLongOrShort==="L"?"S":"L", futurePriceP, futureQuantityP, null, dir, isLongPeriod);
+        this.coveredOrder_ = new OrderRequestInfo(baseJisu, coveredGoodsType, coveredLongOrShort, coveredGoodsCode, coveredPrice, coveredQuantity, null);
+    }
+
+   addPositionInfoPair(positionInfo0, positionInfo1, positionInfo2) {
+        if (!positionInfo0 && !positionInfo1 && !positionInfo2)
+            return -1;
+        var tmp = PairId++; 
+        if (positionInfo0) {
+            positionInfo0.setPairId(tmp);
+        }
+        if (positionInfo1) {
+            positionInfo1.setPairId(tmp);
+        }
+        if (positionInfo2) {
+            positionInfo2.setPairId(tmp);
+        }
+        this.positionInfoPairArray_.push({"id":tmp, "F_C":positionInfo0, "F_P":positionInfo1, "CVD":positionInfo2, "orid":this.id_});
+        return tmp;
+    }
+    getPositionInfoPairs() { return this.positionInfoPairArray_;}
+    getId() { return this.id_;}
+    setId(id) { this.id_ = id;}
+    getBaseJisu() { return this.baseJisu_;}
+    getGoodsType(idx, sidx=0) { if (idx===0) return this.compositeFutureOrder_.getGoodsType(sidx);return this.coveredOrder_.getGoodsType();}
+    getGoodsCode(idx, sidx=0) { if (idx===0) return this.compositeFutureOrder_.getGoodsCode(sidx);return this.coveredOrder_.getGoodsCode();}
+    getFutureLongOrShort() { return this.futureLongOrShort_;}
+    getLongOrShort(idx, sidx=0) { if (idx===0) return this.compositeFutureOrder_.getLongOrShort(sidx);return this.coveredOrder_.getLongOrShort();}
+    setLongOrShort(idx, value, sidx=0) { if (idx===0) this.compositeFutureOrder_.setLongOrShort(sidx, value);else this.coveredOrder_.setLongOrShort(value);}
+    getPrice(idx, sidx=0) { if (idx===0) return this.compositeFutureOrder_.getPrice(sidx);return this.coveredOrder_.getPrice();}
+    getQuantity(idx, sidx=0) { if (idx===0) return this.compositeFutureOrder_.getQuantity(sidx);return this.coveredOrder_.getQuantity();}
+    setQuantity(idx, value, sidx=0) { if (idx===0) this.compositeFutureOrder_.setQuantity(sidx, value);else this.coveredOrder_.setQuantity(value);}
+    getSignedCnt(idx, sidx=0) { if (idx===0) return this.compositeFutureOrder_.getSignedCnt(sidx);return this.coveredOrder_.getSignedCnt();}
+    canOrderCnt(idx, sidx=0) { if (idx===0) return this.compositeFutureOrder_.canOrderCnt(sidx);return this.coveredOrder_.canOrderCnt();}
+    incSigned(idx, signedPrice, signedCnt, sidx=0) { 
+        if (idx===0) 
+            this.compositeFutureOrder_.incSigned(sidx, signedPrice, signedCnt);
+        else 
+            this.coveredOrder_.incSigned(signedPrice, signedCnt);
+    }
+    getSignedPrice(idx, sidx=0) { 
+        if (idx===0) 
+            return this.compositeFutureOrder_.getSignedPrice(sidx);
+        else 
+            return this.coveredOrder_.getSignedPrice();
+    } 
+    setOrderedCnt(idx, orderCnt, sidx=0) { if (idx===0) this.compositeFutureOrder_.setOrderedCnt(sidx, orderCnt); else this.coveredOrder_.setOrderedCnt(orderCnt);}
+    getOrderedCnt(idx, sidx=0) { if (idx===0) return this.compositeFutureOrder_.getOrderedCnt(sidx);return this.coveredOrder_.getOrderedCnt();}
+    resetOrderedCnt(idx, sidx=0) { if (idx===0) this.compositeFutureOrder_.resetOrderedCnt(sidx);else this.coveredOrder_.resetOrderedCnt();}
+    isAbleToOrder(idx, sidx=0) { 
+        if (!this.getGoodsCode(idx, sidx)) 
+            return true;
+        if (this.getOrderedCnt(idx, sidx) > 0) 
+            return false;
+        return this.canOrderCnt(idx, sidx) > 0;
+    }
+
+    isAbleToOrderAll() { 
+        if (this.isAbleToOrder(0, 0) && this.isAbleToOrder(0, 1) && this.isAbleToOrder(1))
+            return true;
+        else
+            return false;
+    }
+    isCompleted(idx, sidx=0) { 
+        if (this.getOrderedCnt(idx, sidx) > 0) 
+            return false;
+        return this.canOrderCnt(idx, sidx) === 0;
+    }
+    isCompletedAll() { 
+        if (this.getOrderedCnt(0, 0) > 0) 
+            return false;
+        if (this.getOrderedCnt(0, 1) > 0) 
+            return false;
+        if (this.getOrderedCnt(1) > 0) 
+            return false;
+        if (this.canOrderCnt(0, 0) === 0 && this.canOrderCnt(0, 1) === 0 && this.canOrderCnt(1) === 0) 
+            return true;
+
+        return false;
+    }
+    on(eventType, orderInfo, signInfo) { 
+        if (this.cbFunc_)
+            this.cbFunc_(eventType, orderInfo, signInfo);
+    }
+    getDir() {return this.dir_;}
+    setDir(value) {this.dir_ = value;}
+
+    isLongPeriod() {return this.isLongPeriod_;}
+    setLongPeriod(value) {this.isLongPeriod_ = value;}
+    toString() { return "F: " + this.compositeFutureOrder_.toString() + " | " + this.coveredOrder_.toString();} 
+}
+
 module.exports.PositionInfo = PositionInfo;
 module.exports.CompositeOrderRequest = CompositeOrderRequest;
 module.exports.LSEnterOrderRequest = LSEnterOrderRequest;
 module.exports.LSPayoffOrderRequest = LSPayoffOrderRequest;
+module.exports.CompositeCoveredOrderRequest = CompositeCoveredOrderRequest;
 module.exports.PairId = PairId;
 module.exports.OrderRequestInfo = OrderRequestInfo;
 

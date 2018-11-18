@@ -25,6 +25,7 @@ var CommRedis = function(redisServerAddr, redisServerPort, tradingCB, optMonIdx 
 
     var board_ = {};
     var ymCode_;
+    var ymCodeNext_;
     var isReady_ = false;
     var optMonIdx_ = optMonIdx;
     var futMonIdx_ = futMonIdx;
@@ -84,6 +85,48 @@ var CommRedis = function(redisServerAddr, redisServerPort, tradingCB, optMonIdx 
                 })(tok);
             }
         }
+
+        const optMonthCPNext = jsonObj['O' + (optMonIdx + 1)];
+        for (var i in optMonthCPNext) {
+            for (var j in optMonthCPNext[i]) {
+                const tok = optMonthCPNext[i][j];
+                targetCodes_.add(tok);
+                if (!ymCodeNext_) {
+                    ymCodeNext_ = tok.slice(3, 5);	
+                }
+
+                (function(key){ 
+                    callCnt++;
+                    client_.hgetall(key, function(err, obj) {
+                        board_[key] = {};
+                        for (var pk in obj) {
+                            var vtype = fieldMap_[pk];
+                            if (!vtype) {
+                                board_[key][pk] = obj[pk];
+                            }
+                            else {
+                                if (vtype === 2) {
+                                    board_[key][pk] = parseFloat(obj[pk]);
+                                }
+                                else if (vtype === 1) {
+                                    board_[key][pk] = parseInt(obj[pk]);
+                                }
+                                else {
+                                    board_[key][pk] = obj[pk];
+                                }
+                            }
+                        }
+                        doneCnt++;
+
+                        if (callCnt === doneCnt) { 
+                            console.log(callCnt, doneCnt);
+                            isReady_ = true;
+                        }
+                    });
+                })(tok);
+            }
+        }
+
     });
 
     subGoodsInfo_ = redis.createClient(redisServerPort, redisServerAddr,{
@@ -170,7 +213,9 @@ var CommRedis = function(redisServerAddr, redisServerPort, tradingCB, optMonIdx 
     });
 
     return {
-        isReady: function() { return isReady_;}
+        isReady: function() { return isReady_;},
+        getYmCode: function() { return ymCode_;},
+        getYmCodeNext: function() { return ymCodeNext_;},
     };
 };
 module.exports = CommRedis;
