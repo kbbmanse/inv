@@ -178,7 +178,9 @@ function processNewOrder(orderReqInfo, baseJisuDir) {
     const item_0 = Board[item_code_0];
     const item_1 = Board[item_code_1];
 
-    var order_cnt = orderReqInfo.canOrderCnt();
+    var order_cnt = orderReqInfo.canOrderCnt(0);
+    if (orderReqInfo.canOrderCnt(1) < order_cnt)
+        order_cnt = orderReqInfo.canOrderCnt(1);
     if (item_lors_0 === "L") {
         if (item_0.offerrem1 < order_cnt)
             order_cnt = item_0.offerrem1;
@@ -375,7 +377,7 @@ function getTargetItemsInfoByDir(fitem, kitem) {
     var trg_act_price_D1 = parseInt(trg_act_price - 2.5);
 
     item_0_code = FCode;
-    item_1_type = "C";
+    var item_1_type = "C";
     if (OrderRequestDir === "U") 
         item_1_code = "201" + YmCode + getLeadingZeroStr(trg_act_price_U1, 3);
     else {

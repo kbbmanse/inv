@@ -172,14 +172,22 @@ function processNewOrder(orderReqInfo, baseJisuDir) {
         return;
 
     const base_jisu = orderReqInfo.getBaseJisu();
-    const item_code_0 = orderReqInfo.getGoodsCode(0);
-    const item_code_1 = orderReqInfo.getGoodsCode(1);
-    const item_lors_0 = orderReqInfo.getLongOrShort(0);
-    const item_lors_1 = orderReqInfo.getLongOrShort(1);
+    const item_code_0 = orderReqInfo.getGoodsCode(0, 0);
+    const item_code_1 = orderReqInfo.getGoodsCode(0, 1);
+    const item_code_2 = orderReqInfo.getGoodsCode(1);
+    const item_lors_0 = orderReqInfo.getLongOrShort(0, 0);
+    const item_lors_1 = orderReqInfo.getLongOrShort(0, 1);
+    const item_lors_2 = orderReqInfo.getLongOrShort(1);
     const item_0 = Board[item_code_0];
     const item_1 = Board[item_code_1];
+    const item_2 = Board[item_code_2];
 
-    var order_cnt = orderReqInfo.canOrderCnt();
+    var order_cnt = orderReqInfo.canOrderCnt(0, 0);
+    if (orderReqInfo.canOrderCnt(0, 1) < order_cnt)
+        order_cnt = orderReqInfo.canOrderCnt(0, 1);
+    if (orderReqInfo.canOrderCnt(1) < order_cnt)
+        order_cnt = orderReqInfo.canOrderCnt(1);
+
     if (item_lors_0 === "L") {
         if (item_0.offerrem1 < order_cnt)
             order_cnt = item_0.offerrem1;
@@ -198,20 +206,29 @@ function processNewOrder(orderReqInfo, baseJisuDir) {
             order_cnt = item_1.bidrem1;
     }
 
+    if (item_lors_2 === "L") {
+        if (item_2.offerrem1 < order_cnt)
+            order_cnt = item_2.offerrem1;
+    }
+    else {
+        if (item_2.bidrem1 < order_cnt)
+            order_cnt = item_2.bidrem1;
+    }
+
     if (order_cnt < 1) 
         return;
 
     if (baseJisuDir === "U") {
         if (item_lors_0 === "L") 
-            enterNewOrder(orderReqInfo, base_jisu, item_0, item_code_0, item_lors_0, item_1, item_code_1, item_lors_1, order_cnt);
+            enterNewOrder(orderReqInfo, base_jisu, 0, 0, item_0, item_code_0, item_lors_0, 0, 1, item_1, item_code_1, item_lors_1, 1, 0, item_2, item_code_2, item_lors_2, order_cnt);
         else
-            enterNewOrder(orderReqInfo, base_jisu, item_1, item_code_1, item_lors_1, item_0, item_code_0, item_lors_0, order_cnt);
+            enterNewOrder(orderReqInfo, base_jisu, 1, 0, item_2, item_code_2, item_lors_2, 0, 1, item_1, item_code_1, item_lors_1, 0, 0, item_0, item_code_0, item_lors_0, order_cnt);
     }
     else {
         if (item_lors_0 === "L") 
-            enterNewOrder(orderReqInfo, base_jisu, item_1, item_code_1, item_lors_1, item_0, item_code_0, item_lors_0, order_cnt);
+            enterNewOrder(orderReqInfo, base_jisu, 1, 0, item_2, item_code_2, item_lors_2, 0, 1, item_1, item_code_1, item_lors_1, 0, 0, item_0, item_code_0, item_lors_0, order_cnt);
         else
-            enterNewOrder(orderReqInfo, base_jisu, item_0, item_code_0, item_lors_0, item_1, item_code_1, item_lors_1, order_cnt);
+            enterNewOrder(orderReqInfo, base_jisu, 0, 0, item_0, item_code_0, item_lors_0, 0, 1, item_1, item_code_1, item_lors_1, 1, 0, item_2, item_code_2, item_lors_2, order_cnt);
     }
 }
 
@@ -235,7 +252,7 @@ const setPositionInfo = function(orderReqInfo, curBaseJisu, positionInfo, isLong
     PositionMap[positionInfo.getId()] = positionInfo;
 };
 
-async function createNewOrderRequest(orderReqInfo, curBaseJisu, posIdx, item, itemCode, lors, orderCnt, posPair, isNewEnter) {
+async function createNewOrderRequest(orderReqInfo, curBaseJisu, posIdx, posSubIdx, item, itemCode, lors, orderCnt, posPair, isNewEnter) {
     var order_price;
     // 해당 지수 호가 남은 카운트에서 주문 하는 양을 빼준다. 다음 호가 정보가 오기전까지는 내부적으로 더 정확하게 유지하기 위함 
     if (lors === "S") {
@@ -247,23 +264,26 @@ async function createNewOrderRequest(orderReqInfo, curBaseJisu, posIdx, item, it
         order_price = item.offerho1;
     }
     const position_info = await orderRequestMgr.createOrderRequestPromise(curBaseJisu, item, itemCode, lors, order_price, orderCnt);
-    orderReqInfo.incSigned(posIdx, position_info.getPrice(), orderCnt);
-    orderReqInfo.resetOrderedCnt(posIdx);
+    orderReqInfo.incSigned(posIdx, position_info.getPrice(), orderCnt, posSubIdx);
+    orderReqInfo.resetOrderedCnt(posIdx, posSubIdx);
     setPositionInfo(orderReqInfo, curBaseJisu, position_info, IsLongPeriod, isNewEnter);
-    posPair["" + posIdx] = position_info;
+    posPair[("" + posIdx) + ("" + posSubIdx)] = position_info;
 }
 
-async function enterNewOrder(orderReqInfo, curBaseJisu, item0, itemCode0, lors0, item1, itemCode1, lors1, orderCnt) {
+async function enterNewOrder(orderReqInfo, curBaseJisu, idx0, sidx0, item0, itemCode0, lors0, idx1, sidx1, item1, itemCode1, lors1, idx2, sidx2, item2, itemCode2, lors2, orderCnt) {
     const posPair = {};
-    orderReqInfo.setOrderedCnt(0, orderCnt);
+    orderReqInfo.setOrderedCnt(0, orderCnt, 0);
+    orderReqInfo.setOrderedCnt(0, orderCnt, 1);
     orderReqInfo.setOrderedCnt(1, orderCnt);
-    await createNewOrderRequest(orderReqInfo, curBaseJisu, 0, item0, itemCode0, lors0, orderCnt, posPair, CurNewOrderRequestInfo === orderReqInfo);
-    await createNewOrderRequest(orderReqInfo, curBaseJisu, 1, item1, itemCode1, lors1, orderCnt, posPair, CurNewOrderRequestInfo === orderReqInfo);
-    const pos_0 = posPair["0"];
-    const pos_1 = posPair["1"];
+    await createNewOrderRequest(orderReqInfo, curBaseJisu, idx0, sidx0, item0, itemCode0, lors0, orderCnt, posPair, CurNewOrderRequestInfo === orderReqInfo);
+    await createNewOrderRequest(orderReqInfo, curBaseJisu, idx1, sidx1, item1, itemCode1, lors1, orderCnt, posPair, CurNewOrderRequestInfo === orderReqInfo);
+    await createNewOrderRequest(orderReqInfo, curBaseJisu, idx2, sidx2, item2, itemCode2, lors2, orderCnt, posPair, CurNewOrderRequestInfo === orderReqInfo);
+    const pos_0 = posPair[("" + idx0) + ("" + sidx0)];
+    const pos_1 = posPair[("" + idx1) + ("" + sidx1)];
+    const pos_2 = posPair[("" + idx2) + ("" + sidx2)];
 
-    if (pos_0 || pos_1) {
-        const pair_id = orderReqInfo.addPositionInfoPair(pos_0, pos_1);
+    if (pos_0 || pos_1 || pos_2) {
+        const pair_id = orderReqInfo.addPositionInfoPair(pos_0, pos_1, pos_2);
         if (pos_0) {
             HistoryDb.run("update c_positions_tbl set pair_id=? where idx=?;", [pair_id, pos_0.getId()]);
             pos_0.setPairId(pair_id);
@@ -272,13 +292,18 @@ async function enterNewOrder(orderReqInfo, curBaseJisu, item0, itemCode0, lors0,
             HistoryDb.run("update c_positions_tbl set pair_id=? where idx=?;", [pair_id, pos_1.getId()]);
             pos_1.setPairId(pair_id);
         }
+        if (pos_2) {
+            HistoryDb.run("update c_positions_tbl set pair_id=? where idx=?;", [pair_id, pos_2.getId()]);
+            pos_2.setPairId(pair_id);
+        }
     }
     
     if (orderReqInfo.isCompletedAll()) {
         const position_info_pairs = orderReqInfo.getPositionInfoPairs();
-        console.log(util.format("enterNewOrder. 진입 주문 체결 완료- ORID:%d, 0:%s, %s, %s, %d, 1:%s, %s, %s, %d, 부분체결된 포지션쌍 카운트:%d",
+        console.log(util.format("enterNewOrder. 진입 주문 체결 완료- ORID:%d, F_C:%s, %s, %s, %d, F_P:%s, %s, %s, %d, CVD:%s, %s, %s, %d, 부분체결된 포지션쌍 카운트:%d",
             orderReqInfo.getId(),
-            orderReqInfo.getGoodsCode(0), orderReqInfo.getLongOrShort(0), parseFloat(orderReqInfo.getPrice(0)).toFixed(2), orderReqInfo.getQuantity(0),
+            orderReqInfo.getGoodsCode(0, 0), orderReqInfo.getLongOrShort(0, 0), parseFloat(orderReqInfo.getPrice(0, 0)).toFixed(2), orderReqInfo.getQuantity(0, 0),
+            orderReqInfo.getGoodsCode(0, 1), orderReqInfo.getLongOrShort(0, 1), parseFloat(orderReqInfo.getPrice(0, 1)).toFixed(2), orderReqInfo.getQuantity(0, 1),
             orderReqInfo.getGoodsCode(1), orderReqInfo.getLongOrShort(1), parseFloat(orderReqInfo.getPrice(1)).toFixed(2), orderReqInfo.getQuantity(1),
             position_info_pairs.length));
 
@@ -301,16 +326,19 @@ function doNewEnterJob(fitem, kitem, curBaseJisu, curBaseJisuDir) {
     // 신규 진입 조건 확인 및 처리 
     if (!CurNewOrderRequestInfo && CurEnterCnt < MaxEnterCnt) {
         const str_base_jisu = curBaseJisu.toFixed(2);
-        console.log(util.format("doNewEnterJob. 포지션 신규 진입- 진입지수:%s, F:%s, %s, %s, CVD:%s, %s, %s, 주문수량:%d", 
+        console.log(util.format("doNewEnterJob. 포지션 신규 진입- 진입지수:%s, F_C:%s, %s, %s, F_P:%s, %s, %s, CVD:%s, %s, %s, 주문수량:%d", 
                     str_base_jisu, 
                     composite_info.goods0.getGoodsCode(), composite_info.goods0.getLongOrShort(), parseFloat(composite_info.goods0.getPrice()).toFixed(2),
-                    composite_info.goods1.getGoodsCode(), composite_info.goods1.getLongOrShort(), parseFloat(composite_info.goods1.getPrice()).toFixed(2), OrderUnit));
+                    composite_info.goods1.getGoodsCode(), composite_info.goods1.getLongOrShort(), parseFloat(composite_info.goods1.getPrice()).toFixed(2), 
+                    composite_info.goods2.getGoodsCode(), composite_info.goods2.getLongOrShort(), parseFloat(composite_info.goods2.getPrice()).toFixed(2), 
+                    OrderUnit));
 
         // 신규 주문을 생성한다. 
-        CurNewOrderRequestInfo = new CompositeOrderRequest(curBaseJisu, composite_info.goods0.getGoodsType(), composite_info.goods0.getGoodsCode(), 
-            composite_info.goods0.getLongOrShort(), composite_info.goods0.getPrice(), composite_info.goods0.getQuantity(), 
-            composite_info.goods1.getGoodsType(), composite_info.goods1.getGoodsCode(), 
-            composite_info.goods1.getLongOrShort(), composite_info.goods1.getPrice(), composite_info.goods1.getQuantity(), 
+        CurNewOrderRequestInfo = new CompositeCoveredOrderRequest(curBaseJisu, composite_info.getFutureLongOrShort(), 
+            composite_info.goods0.getGoodsCode(), composite_info.goods0.getPrice(), composite_info.goods0.getQuantity(), 
+            composite_info.goods1.getGoodsCode(), composite_info.goods1.getPrice(), composite_info.goods1.getQuantity(), 
+            composite_info.goods2.getLongOrShort(), composite_info.goods2.getGoodsType(), 
+            composite_info.goods2.getGoodsCode(), composite_info.goods2.getPrice(), composite_info.goods2.getQuantity(), 
             null, composite_info.getOrderRequestDir(), composite_info.IsLongPeriod());
         // 생성한 주문을 처리한다. 
         processNewOrder(CurNewOrderRequestInfo, curBaseJisuDir);
@@ -368,38 +396,40 @@ function getTargetItemsInfoByDir(fitem, kitem) {
         return null;
     if (Day20Dir === "D" && fitem.price <= LastDayFuture)
         return null;
-    var item_0_code, item_1_code, item_0, item_1;
+    var item_0_code, item_1_code, item_2_code, item_0, item_1, item_2;
 
     var trg_act_price = getTargetActPrice(fitem);
     var trg_act_price_int = parseInt(trg_act_price);
     var trg_act_price_U1 = parseInt(trg_act_price + 2.5);
     var trg_act_price_D1 = parseInt(trg_act_price - 2.5);
+    var item_0_type = "C", item_1_type = "P", item_2_type = "C";
 
-    item_0_code = FCode;
-    item_1_type = "C";
+    item_0_code = "201" + YmCode + getLeadingZeroStr(trg_act_price_int, 3);
+    item_1_code = "301" + YmCode + getLeadingZeroStr(trg_act_price_int, 3);
     if (OrderRequestDir === "U") 
-        item_1_code = "201" + YmCode + getLeadingZeroStr(trg_act_price_U1, 3);
+        item_2_code = "201" + YmCode + getLeadingZeroStr(trg_act_price_U1, 3);
     else {
-        item_1_code = "301" + YmCode + getLeadingZeroStr(trg_act_price_D1, 3);
-        item_1_type = "P";
+        item_2_code = "301" + YmCode + getLeadingZeroStr(trg_act_price_D1, 3);
+        item_2_type = "P";
     }
 
     item_0 = Board[item_0_code];
     item_1 = Board[item_1_code];
+    item_2 = Board[item_2_code];
 
-    if (item_1.price < 1.4) {
+    if (item_2.price < 1.4) {
         if (OrderRequestDir === "U") 
-            item_1_code = "201" + YmCodeNext + getLeadingZeroStr(trg_act_price_U1, 3);
-        else {
-            item_1_code = "301" + YmCodeNext + getLeadingZeroStr(trg_act_price_D1, 3);
-        }
-        item_1 = Board[item_1_code];
+            item_2_code = "201" + YmCodeNext + getLeadingZeroStr(trg_act_price_U1, 3);
+        else 
+            item_2_code = "301" + YmCodeNext + getLeadingZeroStr(trg_act_price_D1, 3);
+        
+        item_2 = Board[item_2_code];
     }
         
     if (OrderRequestDir === "U") {
         return {
             "goods0": {
-                "getGoodsType": function(){ return "F";},
+                "getGoodsType": function(){ return item_0_type;},
                 "getGoodsCode": function(){ return item_0_code;},
                 "getLongOrShort": function(){ return "L";},
                 "getPrice": function(){ return item_0.price;},
@@ -414,6 +444,14 @@ function getTargetItemsInfoByDir(fitem, kitem) {
                 "getQuantity": function(){ return OrderUnit;},
                 "getItem": function(){ return item_1;},
             },
+            "goods2": {
+                "getGoodsType": function(){ return item_2_type;},
+                "getGoodsCode": function(){ return item_2_code;},
+                "getLongOrShort": function(){ return "S";},
+                "getPrice": function(){ return item_2.price;},
+                "getQuantity": function(){ return OrderUnit;},
+                "getItem": function(){ return item_2;},
+            },
             "getOrderRequestDir": function(){ return "U";},
             "IsLongPeriod": function(){ return IsLongPeriod;},
         };
@@ -421,7 +459,7 @@ function getTargetItemsInfoByDir(fitem, kitem) {
     else {
         return {
             "goods0": {
-                "getGoodsType": function(){ return "F";},
+                "getGoodsType": function(){ return item_0_type;},
                 "getGoodsCode": function(){ return item_0_code;},
                 "getLongOrShort": function(){ return "S";},
                 "getPrice": function(){ return item_0.price;},
@@ -431,10 +469,18 @@ function getTargetItemsInfoByDir(fitem, kitem) {
             "goods1": {
                 "getGoodsType": function(){ return item_1_type;},
                 "getGoodsCode": function(){ return item_1_code;},
-                "getLongOrShort": function(){ return "S";},
+                "getLongOrShort": function(){ return "L";},
                 "getPrice": function(){ return item_1.price;},
                 "getQuantity": function(){ return OrderUnit;},
                 "getItem": function(){ return item_1;},
+            },
+            "goods2": {
+                "getGoodsType": function(){ return item_2_type;},
+                "getGoodsCode": function(){ return item_2_code;},
+                "getLongOrShort": function(){ return "S";},
+                "getPrice": function(){ return item_2.price;},
+                "getQuantity": function(){ return OrderUnit;},
+                "getItem": function(){ return item_2;},
             },
             "getOrderRequestDir": function(){ return "D";},
             "IsLongPeriod": function(){ return IsLongPeriod;},

@@ -375,7 +375,7 @@ class CompositeCoveredOrderRequest {
         if (positionInfo2) {
             positionInfo2.setPairId(tmp);
         }
-        this.positionInfoPairArray_.push({"id":tmp, "F_C":positionInfo0, "F_P":positionInfo1, "CVD":positionInfo2, "orid":this.id_});
+        this.positionInfoPairArray_.push({"id":tmp, "00":positionInfo0, "01":positionInfo1, "10":positionInfo2, "orid":this.id_});
         return tmp;
     }
     getPositionInfoPairs() { return this.positionInfoPairArray_;}

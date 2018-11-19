@@ -206,7 +206,10 @@ function processNewOrder(orderReqInfo, baseJisuDir) {
     const item_L = Board[item_code_L];
     const item_S = Board[item_code_S];
 
-    var order_cnt = orderReqInfo.canOrderCnt();
+    var order_cnt = orderReqInfo.canOrderCnt("L");
+    if (orderReqInfo.canOrderCnt("S") < order_cnt)
+        order_cnt = orderReqInfo.canOrderCnt("S");
+
     if (item_L.offerrem1 < order_cnt) 
         order_cnt = item_L.offerrem1;
 
