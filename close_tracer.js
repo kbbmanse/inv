@@ -20,6 +20,7 @@ var CurNewOrderRequestInfo = null;
 var CurEnterCnt = 0;
 var CurDate;
 var CurDateStr;
+var CurDateYMDStr;
 var BaseJisuDir = null;
 var FMidBase = 0.0;
 var FMidPrev = 0.0;
@@ -31,12 +32,14 @@ var FutMonIdx = 0;
 var MaxEnterCnt = 1;
 var OrderRequestDir = "U";
 var IsLongPeriod = false;
-var CloseHour = 3;
+var CloseHour = 15;
 var CloseMin = 32;
 var CloseSec = 0;
 var Day20Dir = "U";
+var LastDayStr;
 var LastDayK200 = 10000.0;
 var LastDayFuture = 10000.0;
+var IsChangeLastDay = false;
 
 console.log(util.format("Usage: node %s OrderUnit CloseHour CloseMin CloseSec", process.argv[1]));
 console.log(util.format("ex: node %s %d %d %d %d",
@@ -45,19 +48,33 @@ console.log(util.format("ex: node %s %d %d %d %d",
 if (process.argv.length >= 3) 
     OrderUnit = parseInt(process.argv[2]);
 
+if (process.argv.length >= 4) 
+    CloseHour = parseInt(process.argv[3]);
+
+if (process.argv.length >= 5) 
+    CloseMin = parseInt(process.argv[4]);
+
+if (process.argv.length >= 6) 
+    CloseSec = parseInt(process.argv[5]);
+
 const orderComm = new OrderComm(Config["comm_port"]);
 const orderRequestMgr = new OrderRequestMgr(orderComm);
 const commRedis = new CommRedis(Config["redis_host"], Config["redis_port"], trading, OptMonIdx, FutMonIdx);
 
 const HistoryDb = new sqlite3.Database(DbFilePath, sqlite3.OPEN_READWRITE, function(error) {
-    this.get("select * from latest_goods_info_tbl where goods_code='KOSPI200';", [], (err, row)=> {
-        LastDayK200 = parseFloat(row.price);
-        console.log("LastDayK200:", LastDayK200);
-    });
 
-    this.get("select * from latest_goods_info_tbl where goods_code='FUTURE';", [], (err, row)=> {
-        LastDayFuture = parseFloat(row.price);
-        console.log("LastDayFuture:", LastDayFuture);
+    this.get("select * from latest_goods_info_tbl where goods_code='last_day' and date='last_day';", [], (err, row)=> {
+        LastDayStr = row.price;
+        console.log("LastDay:", LastDayStr);
+        this.get("select * from latest_goods_info_tbl where goods_code='KOSPI200' and date=?;", [LastDayStr], (err, row)=> {
+            LastDayK200 = parseFloat(row.price);
+            console.log("LastDayK200:", LastDayK200);
+        });
+
+        this.get("select * from latest_goods_info_tbl where goods_code='FUTURE' and date=?;", [LastDayStr], (err, row)=> {
+            LastDayFuture = parseFloat(row.price);
+            console.log("LastDayFuture:", LastDayFuture);
+        });
     });
 
     this.get("select * from latest_goods_info_tbl where goods_code='day_20_dir';", [], (err, row)=> {
@@ -79,6 +96,10 @@ const HistoryDb = new sqlite3.Database(DbFilePath, sqlite3.OPEN_READWRITE, funct
         if (position_info.getId() + 1 > PositionInfo.positionIdSeq_) 
             PositionInfo.positionIdSeq_ = position_info.getId() + 1;
 
+        var insertedDate = row["inserted_date"];
+        position_info.setInsertedDate(insertedDate);
+
+        position_info.setPayoffTargetJisu(payoffTargetJisu);
         var payoffTargetJisu = row["payoff_target_jisu"];
         position_info.setPayoffTargetJisu(payoffTargetJisu);
 
@@ -179,7 +200,18 @@ function processNewOrder(orderReqInfo, baseJisuDir) {
     if (order_cnt < 1) 
         return;
 
-    enterNewOrder(orderReqInfo, base_jisu, item_0, item_code_0, item_lors_0, item_1, item_code_1, item_lors_1, order_cnt);
+    if (baseJisuDir === "U") {
+        if (item_lors_0 === "L") 
+            enterNewOrder(orderReqInfo, base_jisu, item_0, item_code_0, item_lors_0, item_1, item_code_1, item_lors_1, order_cnt);
+        else
+            enterNewOrder(orderReqInfo, base_jisu, item_1, item_code_1, item_lors_1, item_0, item_code_0, item_lors_0, order_cnt);
+    }
+    else {
+        if (item_lors_0 === "L") 
+            enterNewOrder(orderReqInfo, base_jisu, item_1, item_code_1, item_lors_1, item_0, item_code_0, item_lors_0, order_cnt);
+        else
+            enterNewOrder(orderReqInfo, base_jisu, item_0, item_code_0, item_lors_0, item_1, item_code_1, item_lors_1, order_cnt);
+    }
 }
 
 const setPositionInfo = function(orderReqInfo, curBaseJisu, positionInfo, isLongPeriod, isNewEnter) {
@@ -190,6 +222,7 @@ const setPositionInfo = function(orderReqInfo, curBaseJisu, positionInfo, isLong
     positionInfo.setLongPeriod(isLongPeriod);
     positionInfo.setNewEnter(isNewEnter);
     positionInfo.setOrderInfo(null);
+    positionInfo.setInsertedDate(CurDateStr);
     HistoryDb.run("insert into c_positions_tbl values (?,?,?,?,?,?,?,?,?,?,?,?,?,?);",
         [positionInfo.getId(), positionInfo.getGoodsCode(), positionInfo.getLongOrShort(), positionInfo.getPrice(), positionInfo.getQuantity(),
             positionInfo.getBaseJisu(), positionInfo.getBaseJisu(), positionInfo.getPayoffTargetJisu(), positionInfo.getLosscutTargetJisu(),
@@ -256,10 +289,9 @@ async function enterNewOrder(orderReqInfo, curBaseJisu, item0, itemCode0, lors0,
 }
 
 function doNewEnterJob(fitem, kitem, curBaseJisu, curBaseJisuDir) {
-    const composite_info = getTargetItemsInfoByDir(fitem, ktem);
+    const composite_info = getTargetItemsInfoByDir(fitem, kitem);
     if (!composite_info)
         return;
-
     // 만약 이미 주문이 들어가 있다면 바로 리턴
     if (CurNewOrderRequestInfo) {
         processNewOrder(CurNewOrderRequestInfo, curBaseJisuDir);
@@ -325,15 +357,16 @@ function getTargetActPrice(fitem) {
 }
 
 function getTargetItemsInfoByDir(fitem, kitem) {
+    if (!CurDate)
+        return null;
     if (CurDate.getHours() < CloseHour)
         return null;
-    if (CurDate.getMinutes() < CloseMin)
+    if (CurDate.getHours() === CloseHour && CurDate.getMinutes() < CloseMin)
         return null;
-    if (CurDate.getSeconds() < CloseSec)
+    if (CurDate.getHours() === CloseHour && CurDate.getMinutes() === CloseMin && CurDate.getSeconds() < CloseSec)
         return null;
     if (Day20Dir === "D" && fitem.price <= LastDayFuture)
         return null;
-
     var item_0_code, item_1_code, item_0, item_1;
 
     var trg_act_price = getTargetActPrice(fitem);
@@ -362,7 +395,7 @@ function getTargetItemsInfoByDir(fitem, kitem) {
         item_1 = Board[item_1_code];
     }
         
-    if (orderRequestDir === "U") {
+    if (OrderRequestDir === "U") {
         return {
             "goods0": {
                 "getGoodsType": function(){ return "F";},
@@ -414,6 +447,7 @@ function doLogic() {
 
     CurDate = new Date();
     CurDateStr = CurDate.toFormat('YYYY-MM-DD HH24:MI:SS');
+    CurDateYMDStr = (CurDateStr.split(" "))[0];
     const fitem = Board[FCode];
     const kitem = Board["KOSPI200"];
 
@@ -428,23 +462,39 @@ function doLogic() {
             parseFloat(kitem.price).toFixed(2),parseFloat(kitem.open).toFixed(2),parseFloat(kitem.high).toFixed(2),parseFloat(kitem.low).toFixed(2)));
     trading(Board, FCode, YmCode);
    
-    if (CurDate.getHours() > 15)
+    if (CurDate.getHours() > 15) {
+        if (IsChangeLastDay === false) {
+            HistoryDb.run("REPLACE INTO latest_goods_info_tbl(goods_code, date, price) VALUES('last_day', 'last_day', ?);", [CurDateYMDStr]);
+            IsChangeLastDay = true;
+        }
         return;
-    if (CurDate.getHours() === 15 && CurDate.getMinutes() > 45)
+    }
+    if (CurDate.getHours() === 15 && CurDate.getMinutes() > 45) {
+        if (IsChangeLastDay === false) {
+            HistoryDb.run("REPLACE INTO latest_goods_info_tbl(goods_code, date, price) VALUES('last_day', 'last_day', ?);", [CurDateYMDStr]);
+            IsChangeLastDay = true;
+        }
         return;
-    if (CurDate.getHours() === 15 && CurDate.getMinutes() === 45 && CurDate.getSeconds() > 10)
+    }
+    if (CurDate.getHours() === 15 && CurDate.getMinutes() === 45 && CurDate.getSeconds() > 10) {
+        if (IsChangeLastDay === false) {
+            HistoryDb.run("REPLACE INTO latest_goods_info_tbl(goods_code, date, price) VALUES('last_day', 'last_day', ?);", [CurDateYMDStr]);
+            IsChangeLastDay = true;
+        }
         return;
+    }
 
-    UpdateLatestGoodsInfos();
+    if (CurDate.getSeconds() === 0)
+        UpdateLatestGoodsInfos();
 }
 
 function UpdateLatestGoodsInfos() {
     let query = "REPLACE INTO latest_goods_info_tbl(goods_code, date, price, open, high, low) VALUES(?, ?, ?, ?, ?, ?);";
     for (let k in Board) {
         let item = Board[k];
-        HistoryDb.run(query, [k, CurDateStr, parseFloat(item.price).toFixed(2), parseFloat(item.open).toFixed(2), parseFloat(item.high).toFixed(2), parseFloat(item.low).toFixed(2)]);
+        HistoryDb.run(query, [k, CurDateYMDStr, parseFloat(item.price).toFixed(2), parseFloat(item.open).toFixed(2), parseFloat(item.high).toFixed(2), parseFloat(item.low).toFixed(2)]);
         if (k === FCode)
-            HistoryDb.run(query, ['FUTURE', CurDateStr, parseFloat(item.price).toFixed(2), parseFloat(item.open).toFixed(2), parseFloat(item.high).toFixed(2), parseFloat(item.low).toFixed(2)]);
+            HistoryDb.run(query, ['FUTURE', CurDateYMDStr, parseFloat(item.price).toFixed(2), parseFloat(item.open).toFixed(2), parseFloat(item.high).toFixed(2), parseFloat(item.low).toFixed(2)]);
     }
 }
 
@@ -456,6 +506,9 @@ function doPayoffJob(fitem, curBaseJisu, curBaseJisuDir) {
     for (var key in PositionMap) {
         const position_info = PositionMap[key];
         if (!position_info || position_info.isProcessing())
+            continue;
+        const inserted_date_ymd = position_info.getInsertedDateYMD();
+        if (!inserted_date_ymd || inserted_date_ymd === CurDateYMDStr)
             continue;
 
         processPayoff(curBaseJisu, curBaseJisuDir, position_info);

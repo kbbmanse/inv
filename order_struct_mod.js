@@ -35,6 +35,7 @@ class PositionInfo {
         this.isLongPeriod_ = isLongPeriod;
         this.isProcessing_ = false;
         this.isNewEnter_ = false;
+        this.insertedDate_ = null;
     }
 
     calcActPrice(goodsCode) {
@@ -103,11 +104,14 @@ class PositionInfo {
     setProcessing(value) { this.isProcessing_ = value;}
     isNewEnter() { return this.isNewEnter_;}
     setNewEnter(value) { this.isNewEnter_ = value;}
+    getInsertedDate() { return this.insertedDate_;}
+    setInsertedDate(value) { this.insertedDate_ = value;}
+    getInsertedDateYMD() { if (!this.insertedDate_) return null; return (this.insertedDate_.split(" "))[0];}
     toString() { 
-        return util.format("dir:%s,lp:%s,id:%d,gt:%s,ij:%d,bj:%d,gc:%s,L/S:%s,p:%d,q:%d,li:%d,pt:%d,lp:%d,pi:%d,orid:%d,ap:%d,au:%d,ad:%d,ym:%s", 
+        return util.format("dir:%s,lp:%s,id:%d,gt:%s,ij:%d,bj:%d,gc:%s,L/S:%s,p:%d,q:%d,li:%d,pt:%d,lp:%d,pi:%d,orid:%d,ap:%d,au:%d,ad:%d,ym:%s,id:%s", 
                 this.dir_, this.isLongPeriod_, this.id_, this.goodsType_, this.initPrice_, this.basePrice_, this.goodsCode_, this.longOrShort_, this.price_,
                     this.quantity_, this.linkedPositionId_, this.payoffTargetPrice_, this.losscutTargetPrice_, this.pairId_, this.orderRequestInfoId_, 
-                    this.actPrice_, this.actPriceUp_, this.actPriceDown_, this.ymCode_);
+                    this.actPrice_, this.actPriceUp_, this.actPriceDown_, this.ymCode_, this.insertedDate_);
     } 
 };
 PositionInfo.positionIdSeq_ = 0;
