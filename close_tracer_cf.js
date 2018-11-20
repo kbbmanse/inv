@@ -531,7 +531,7 @@ function doLogic() {
         return;
     }
 
-    if (CurDate.getSeconds() === 0)
+    if (CurDate.getSeconds() === 5)
         UpdateLatestGoodsInfos();
 }
 
