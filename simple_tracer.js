@@ -44,10 +44,15 @@ var OrderRequestDir = "U";
 var IsLongPeriod = true;
 var IsLongPeriodHedge = true;
 var IsChangeStartPrice = true;
+var CloseHedgeHour = 15;
+var CloseHedgeMin = 32;
+var CloseHedgeSec = 5;
+var IsCloseHedge = true;
 
-console.log(util.format("Usage: node %s OrderRequestDir OrderTypeCOrP IsLongPeriod OrderUnit EnterPointUnit PayoffPointUnit EnterMinProfit EnterStartPrice IsFixedOrderUnit MaxEnterCnt IsLongPeriodHedge IsChangeStartPrice OptMonIdx FutMonIdx", process.argv[1]));
-console.log(util.format("ex: node %s %s %s 1 %d %d %d %d %d 1 %d 1 1 %d %d", 
-            process.argv[1], OrderRequestDir, OrderTypeCOrP, OrderUnit, EnterPointUnit, PayoffPointUnit, EnterMinProfit, 270.20, MaxEnterCnt, OptMonIdx, FutMonIdx));
+console.log(util.format("Usage: node %s OrderRequestDir OrderTypeCOrP IsLongPeriod OrderUnit EnterPointUnit PayoffPointUnit EnterMinProfit EnterStartPrice IsFixedOrderUnit MaxEnterCnt IsLongPeriodHedge IsChangeStartPrice OptMonIdx FutMonIdx CurEnterCnt OneWayOrderedCnt IsCloseHedge CloseHedgeHour CloseHedgeMin CloseHedgeSec", process.argv[1]));
+console.log(util.format("ex: node %s %s %s 1 %d %d %d %d %d 1 %d 1 1 %d %d %d %d 1 %d %d %d", 
+            process.argv[1], OrderRequestDir, OrderTypeCOrP, OrderUnit, EnterPointUnit, PayoffPointUnit, EnterMinProfit, 270.20, 
+            MaxEnterCnt, OptMonIdx, FutMonIdx, CurEnterCnt, OneWayOrderedCnt, CloseHedgeHour, CloseHedgeMin, CloseHedgeSec));
 
 if (process.argv.length >= 3) {
    if (process.argv[2] === "D")
@@ -101,6 +106,28 @@ if (process.argv.length >= 15)
 
 if (process.argv.length >= 16) 
    FutMonIdx = parseInt(process.argv[15]);
+
+if (process.argv.length >= 17) 
+   CurEnterCnt = parseInt(process.argv[16]);
+
+OneWayOrderedCnt = CurEnterCnt * OrderUnit;
+if (process.argv.length >= 18) {
+   OneWayOrderedCnt = parseInt(process.argv[17]);
+}
+
+if (process.argv.length >= 19) {
+   if (!parseInt(process.argv[18]))
+       IsCloseHedge = false;
+}
+
+if (process.argv.length >= 20) 
+   CloseHedgeHour = parseInt(process.argv[19]);
+
+if (process.argv.length >= 21) 
+   CloseHedgeMin = parseInt(process.argv[20]);
+
+if (process.argv.length >= 22) 
+   CloseHedgeSec = parseInt(process.argv[21]);
 
 const orderComm = new OrderComm(Config["comm_port"]);
 const orderRequestMgr = new OrderRequestMgr(orderComm);
@@ -179,6 +206,20 @@ function trading(board, fCode, yMCode) {
 
         doPayoffJob(fitem, base_jisu, BaseJisuDir);
         doNewEnterJob(fitem, kitem, base_jisu, BaseJisuDir, OrderRequestDir, OrderTypeCOrP);
+
+        if (!CurDate)
+            return;
+        if (CurDate.getHours() < CloseHedgeHour)
+            return;
+        if (CurDate.getHours() === CloseHedgeHour && CurDate.getMinutes() < CloseHedgeMin)
+            return;
+        if (CurDate.getHours() === CloseHedgeHour && CurDate.getMinutes() === CloseHedgeMin && CurDate.getSeconds() < CloseHedgeSec)
+            return;
+
+        if (OneWayOrderedCnt > 0 && IsCloseHedge && IsLongPeriodHedge) {
+            IsCloseHedge = false;
+            createHedgePosition(fitem, kitem, curBaseJisu, curBaseJisuDir, orderRequestDir, orderTypeCOrP);
+        }
     }
 }
 
@@ -411,20 +452,25 @@ function doNewEnterJob(fitem, kitem, curBaseJisu, curBaseJisuDir, orderRequestDi
         processNewOrder(CurNewOrderRequestInfo, curBaseJisuDir);
         OneWayOrderedCnt += orderCnt;
 
-        if (CurEnterCnt == MaxEnterCnt && IsLongPeriod && IsLongPeriodHedge) {
-            const order_req_dir_inv = orderRequestDir === "U"?"D":"U";
-            const order_type_corp_inv = orderTypeCOrP === "C"?"P":"C";
-            const items_info_inv = getTargetItemsInfoByDir(fitem, order_req_dir_inv, order_type_corp_inv);
-            HedgeNewOrderRequestInfo = new LSEnterOrderRequest(order_type_corp_inv, curBaseJisu, 
-                    items_info_inv.item_l_code, items_info_inv.item_l.price, OneWayOrderedCnt, items_info_inv.item_s_code, items_info_inv.item_s.price, OneWayOrderedCnt, 
-                    null, order_req_dir_inv, IsLongPeriod);
-            console.log(util.format("doNewEnterJob. 헷지포지션 신규 진입- 진입지수:%s, L:%s, %s, S:%s, %s, 주문수량:%d", 
-                        str_base_jisu, items_info_inv.item_l_code, parseFloat(items_info_inv.item_l.price).toFixed(2),
-                        items_info_inv.item_s_code, parseFloat(items_info_inv.item_s.price).toFixed(2), OneWayOrderedCnt));
-            // 생성한 주문을 처리한다. 
-            processNewOrder(HedgeNewOrderRequestInfo, curBaseJisuDir);
-        }
+        if (CurEnterCnt == MaxEnterCnt && IsLongPeriod && IsLongPeriodHedge) 
+            createHedgePosition(fitem, kitem, curBaseJisu, curBaseJisuDir, orderRequestDir, orderTypeCOrP);
     }
+}
+
+function createHedgePosition(fitem, kitem, curBaseJisu, curBaseJisuDir, orderRequestDir, orderTypeCOrP) {
+    IsLongPeriodHedge = false;
+    const str_base_jisu = curBaseJisu.toFixed(2);
+    const order_req_dir_inv = orderRequestDir === "U"?"D":"U";
+    const order_type_corp_inv = orderTypeCOrP === "C"?"P":"C";
+    const items_info_inv = getTargetItemsInfoByDir(fitem, order_req_dir_inv, order_type_corp_inv);
+    HedgeNewOrderRequestInfo = new LSEnterOrderRequest(order_type_corp_inv, curBaseJisu, 
+            items_info_inv.item_l_code, items_info_inv.item_l.price, OneWayOrderedCnt, items_info_inv.item_s_code, items_info_inv.item_s.price, OneWayOrderedCnt, 
+            null, order_req_dir_inv, IsLongPeriod);
+    console.log(util.format("doNewEnterJob. 헷지포지션 신규 진입- 진입지수:%s, L:%s, %s, S:%s, %s, 주문수량:%d", 
+                str_base_jisu, items_info_inv.item_l_code, parseFloat(items_info_inv.item_l.price).toFixed(2),
+                items_info_inv.item_s_code, parseFloat(items_info_inv.item_s.price).toFixed(2), OneWayOrderedCnt));
+    // 생성한 주문을 처리한다. 
+    processNewOrder(HedgeNewOrderRequestInfo, curBaseJisuDir);
 }
 
 function getMovingAvg(fitem) {
@@ -560,6 +606,8 @@ function doLogic() {
             (new Date()).toLocaleTimeString(), BaseJisuDir, parseFloat(fitem.price).toFixed(2),parseFloat(fitem.open).toFixed(2),parseFloat(fitem.high).toFixed(2),parseFloat(fitem.low).toFixed(2),
             parseFloat(kitem.price).toFixed(2),parseFloat(kitem.open).toFixed(2),parseFloat(kitem.high).toFixed(2),parseFloat(kitem.low).toFixed(2), 
             items_info.item_l_code, items_info.item_s_code, parseFloat(items_info.diff).toFixed(2), parseFloat(items_info.d).toFixed(2)));
+    
+        
     trading(Board, FCode, YmCode);
 }
 
