@@ -218,7 +218,7 @@ function trading(board, fCode, yMCode) {
 
         if (OneWayOrderedCnt > 0 && IsCloseHedge && IsLongPeriodHedge) {
             IsCloseHedge = false;
-            createHedgePosition(fitem, kitem, curBaseJisu, curBaseJisuDir, orderRequestDir, orderTypeCOrP);
+            createHedgePosition(fitem, kitem, base_jisu, BaseJisuDir, orderRequestDir, orderTypeCOrP);
         }
     }
 }

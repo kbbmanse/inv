@@ -453,6 +453,7 @@ function getTargetItemsInfoByDir(fitem, kitem) {
                 "getItem": function(){ return item_2;},
             },
             "getOrderRequestDir": function(){ return "U";},
+            "getFutureLongOrShort": function(){ return "L";},
             "IsLongPeriod": function(){ return IsLongPeriod;},
         };
     }
@@ -483,6 +484,7 @@ function getTargetItemsInfoByDir(fitem, kitem) {
                 "getItem": function(){ return item_2;},
             },
             "getOrderRequestDir": function(){ return "D";},
+            "getFutureLongOrShort": function(){ return "S";},
             "IsLongPeriod": function(){ return IsLongPeriod;},
         };
     }
