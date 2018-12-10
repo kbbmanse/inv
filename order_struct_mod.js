@@ -358,7 +358,7 @@ class CompositeCoveredOrderRequest {
         this.isLongPeriod_ = isLongPeriod;
         this.futureLongOrShort_ = futureLongOrShort;
         this.compositeFutureOrder_ = new CompositeOrderRequest(baseJisu, "C", futureGoodsCodeC, futureLongOrShort==="L"?"L":"S", futurePriceC, futureQuantityC, 
-                "P", futureCoodsCodeP, futureLongOrShort==="L"?"S":"L", futurePriceP, futureQuantityP, null, dir, isLongPeriod);
+                "P", futureGoodsCodeP, futureLongOrShort==="L"?"S":"L", futurePriceP, futureQuantityP, null, dir, isLongPeriod);
         this.coveredOrder_ = new OrderRequestInfo(baseJisu, coveredGoodsType, coveredLongOrShort, coveredGoodsCode, coveredPrice, coveredQuantity, null);
     }
 
