@@ -33,30 +33,41 @@ var FutMonIdx = 0;
 var MaxEnterCnt = 1;
 var OrderRequestDir = "U";
 var IsLongPeriod = false;
-var CloseHour = 15;
-var CloseMin = 32;
-var CloseSec = 0;
+var CoverHour = 15;
+var CoverMin = 32;
+var CoverSec = 0;
 var Day20Dir = "U";
 var LastDayStr;
 var LastDayK200 = 10000.0;
 var LastDayFuture = 10000.0;
 var IsChangeLastDay = false;
 
-console.log(util.format("Usage: node %s OrderUnit CloseHour CloseMin CloseSec", process.argv[1]));
-console.log(util.format("ex: node %s %d %d %d %d",
-            process.argv[1], OrderUnit, CloseHour, CloseMin, CloseSec));
+if (process.argv.length < 5) {
+    console.log(util.format("Usage: node %s IsLongPeriod OrderRequestDir OrderUnit CoverHour CoverMin CoverSec", process.argv[1]));
+    console.log(util.format("ex: node %s %d %s %d %d %d %d",
+                process.argv[1], IsLongPeriod?1:0, OrderRequestDir, OrderUnit, CoverHour, CoverMin, CoverSec));
+    process.exit(-1);
+}
 
-if (process.argv.length >= 3) 
-    OrderUnit = parseInt(process.argv[2]);
+if (process.argv.length >= 3) {
+    if (parseInt(process.argv[2]))
+        IsLongPeriod = true;
+}
 
 if (process.argv.length >= 4) 
-    CloseHour = parseInt(process.argv[3]);
+    OrderRequestDir = process.argv[3];
 
 if (process.argv.length >= 5) 
-    CloseMin = parseInt(process.argv[4]);
+    OrderUnit = parseInt(process.argv[4]);
 
 if (process.argv.length >= 6) 
-    CloseSec = parseInt(process.argv[5]);
+    CoverHour = parseInt(process.argv[5]);
+
+if (process.argv.length >= 7) 
+    CoverMin = parseInt(process.argv[6]);
+
+if (process.argv.length >= 8) 
+    CoverSec = parseInt(process.argv[7]);
 
 const orderComm = new OrderComm(Config["comm_port"]);
 const orderRequestMgr = new OrderRequestMgr(orderComm);
@@ -386,16 +397,21 @@ function getTargetActPrice(fitem) {
 }
 
 function getTargetItemsInfoByDir(fitem, kitem) {
+    if (OrderUnit < 1)
+        return null;
+
     if (!CurDate)
         return null;
-    if (CurDate.getHours() < CloseHour)
+
+    if (CurDate.getHours() < CoverHour)
         return null;
-    if (CurDate.getHours() === CloseHour && CurDate.getMinutes() < CloseMin)
+
+    if (CurDate.getHours() === CoverHour && CurDate.getMinutes() < CoverMin)
         return null;
-    if (CurDate.getHours() === CloseHour && CurDate.getMinutes() === CloseMin && CurDate.getSeconds() < CloseSec)
+
+    if (CurDate.getHours() === CoverHour && CurDate.getMinutes() === CoverMin && CurDate.getSeconds() < CoverSec)
         return null;
-    if (Day20Dir === "D" && fitem.price <= LastDayFuture)
-        return null;
+
     var item_0_code, item_1_code, item_2_code, item_0, item_1, item_2;
 
     var trg_act_price = getTargetActPrice(fitem);

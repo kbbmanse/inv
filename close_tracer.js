@@ -513,7 +513,34 @@ function doPayoffJob(fitem, curBaseJisu, curBaseJisuDir) {
         if (!inserted_date_ymd || inserted_date_ymd === CurDateYMDStr)
             continue;
 
-        processPayoff(curBaseJisu, curBaseJisuDir, position_info);
+        let is_process = false;
+        if (position_info.getDir() === "U") {// 상방포지션 처리
+            if (position_info.isLongPeriod()) {
+                if (position_info.getPayoffTargetJisu() && position_info.getPayoffTargetJisu() <= curBaseJisu)
+                    is_process = true, console.log(util.format("doPayoffJob.U.LPeriod.payoffTargetJisu: %d, %s",
+                                position_info.getPayoffTargetJisu(), position_info.toString()));
+                else if (position_info.getLosscutTargetJisu() && position_info.getLosscutTargetJisu() >= curBaseJisu)
+                    is_process = true, console.log(util.format("doPayoffJob.U.LPeriod.losscutTargetJisu: %d, %s",
+                                position_info.getLosscutTargetJisu(), position_info.toString()));
+            }
+            else 
+                is_process = true;
+        }
+        else {// 하방 포지션 처리
+            if (position_info.isLongPeriod()) {
+                if (position_info.getPayoffTargetJisu() && position_info.getPayoffTargetJisu() >= curBaseJisu)
+                    is_process = true, console.log(util.format("doPayoffJob.D.LPeriod.payoffTargetJisu: %d, %s",
+                                position_info.getPayoffTargetJisu(), position_info.toString()));
+                else if (position_info.getLosscutTargetJisu() && position_info.getLosscutTargetJisu() <= curBaseJisu)
+                    is_process = true, console.log(util.format("doPayoffJob.D.LPeriod.losscutTargetJisu: %d, %s",
+                                position_info.getLosscutTargetJisu(), position_info.toString()));
+            }
+            else 
+                is_process = true;
+        }
+
+        if (is_process)
+            processPayoff(curBaseJisu, curBaseJisuDir, position_info);
     }
 }
 
